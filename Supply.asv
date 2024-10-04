@@ -1,0 +1,59 @@
+classdef Supply < handle
+    %UNTITLED12 Summary of this class goes here
+    %   Detailed explanation goes here
+
+    properties %% Supply class properties
+        supId               % ID Number
+        supRateMax          % Maximum supply rate per time unit
+        location            % Location for visualization
+        size                % Size for visualization
+        productOut          % Outgoing product to the first inventory
+        phyLinkOut          % Outgoing physical link to the first inventory
+    end
+
+    methods
+        function obj = Supply(supId, location, sizeS)
+            disp('Started creating a supply...');
+            obj.supId = supId;
+            obj.location = location;
+            obj.size = sizeS;
+
+            % Loading supply characteristics
+            obj.supRateMax = 1000;  % Maximum supply rate per time step
+            obj.productOut = 0;     % Initialize outgoing product
+
+            disp('Finished creating a supply...');
+        end
+
+        function supplyProducts(obj)
+            % Supply products to the first inventory based on its orderOut request
+            requestedAmount = obj.phyLinkOut.downInven.orderIn;
+            obj.productOut = min(requestedAmount, obj.supRateMax);  % Fulfill as much as possible
+        end
+        
+        function updateState(obj)
+            % Supplier has no internal state to update
+        end
+
+        function outputArg = draw(obj, figNum)
+    figure(figNum); hold on;
+    
+    % Draw the supplier as a triangle
+    x = obj.location(1);
+    y = obj.location(2);
+    triangleX = [x - obj.size/2, x + obj.size/2, x - obj.size/2];  % X-coordinates
+    triangleY = [y + obj.size/2, y, y - obj.size/2];  % Y-coordinates
+    fill(triangleX, triangleY, 'r');
+    
+    % Plot the number of products as dots
+    numProducts = floor(obj.productOut);
+    for i = 1:numProducts
+        plot(x + randn()*obj.size*0.1, y + randn()*obj.size*0.1, 'ro', 'MarkerSize', 3);
+    end
+    
+    % Display the product count as text
+    text(x, y + obj.size/2 + 10, ['Products: ', num2str(numProducts)], 'HorizontalAlignment', 'center');
+end
+
+    end
+end
