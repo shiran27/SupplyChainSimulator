@@ -8,26 +8,32 @@ classdef PhyLink < handle
         downInven       % Downstream Inventory or Demand
         tranDelay       % Delay in transportation (in time steps)
         delayBuffer     % Buffer to store products in transit
+        wasteRateMean      % Mean waste rate
+        wasteRateStd       % Standard deviation of the waste rate
+        waste
         location        % Location for visualization
     end
 
     methods
         function obj = PhyLink(id, location, tranDelay, upInven, downInven)
-            disp('Started creating a PhyLink...');
+            % disp('Started creating a PhyLink...');
             obj.phyLinkId = id;
 
             % Passing references to up and down inventories (or supplier/demander)
             obj.upInven = upInven;
             obj.downInven = downInven;
             obj.tranDelay = tranDelay;
+            obj.wasteRateMean = 5+randi([1,5]);      % Mean waste rate
+            obj.wasteRateStd = 0.2*obj.wasteRateMean;       % Standard deviation of the waste rate
+            obj.waste = obj.wasteRateMean;
 
             % Initialize the delay buffer (FIFO queue)
-            obj.delayBuffer = randi([1,10], 1, tranDelay);  % Buffer size equal to the delay
+            obj.delayBuffer = randi([1,50], 1, tranDelay);  % Buffer size equal to the delay
 
             % Set location for visualization
             obj.location = location;
 
-            disp('Finished creating a PhyLink...');
+            % disp('Finished creating a PhyLink...');
         end
 
         function transportGoods(obj)
@@ -36,13 +42,25 @@ classdef PhyLink < handle
             % Deliver the oldest product in the buffer to the downstream node
             % obj.downInven.productIn = obj.delayBuffer(end);
 
+            % Product Waste
+            wasteValue = obj.wasteRateMean + obj.wasteRateStd * randn();
+            % Smoothing factor (between 0 and 1, where 1 means no smoothing)
+            alpha = 0.5; 
+            % Apply exponential moving average to smooth waste
+            wasteSmooth = alpha * wasteValue + (1 - alpha) * obj.waste;
+            wasteValueFiltered = min(round(wasteSmooth), obj.upInven.productOut); 
+            obj.waste = wasteValueFiltered;
+
+
+            newProductIn = max(0, obj.upInven.productOut - obj.waste);
 
             % Shift the buffer and add the new product from the upstream node
             if obj.tranDelay > 1
-                obj.delayBuffer = [obj.upInven.productOut, obj.delayBuffer(1:end-1)];
+                obj.delayBuffer = [newProductIn, obj.delayBuffer(1:end-1)];
             else
-                obj.delayBuffer = obj.upInven.productOut;
+                obj.delayBuffer = newProductIn;
             end
+
         end
 
         function draw(obj)
@@ -57,16 +75,16 @@ classdef PhyLink < handle
                 yPos = interp1([1, numSteps+1], obj.location(:,2), i+0.5);
                 
                 % Bold dot to represent the buffer spot
-                plot(xPos, yPos, 'k.', 'MarkerSize', 8, 'MarkerFaceColor', 'k');
+                plot(xPos, yPos, 'k.', 'MarkerSize', 10, 'MarkerFaceColor', 'k');
                 
                 % Vertical column of dots to represent number of products in this buffer spot
                 numProducts = obj.delayBuffer(i);
-                for j = 1:numProducts
-                    plot(xPos, yPos + j*5, 'k.', 'MarkerSize', 4, 'Color', 'k');  % Use dots instead of circles
-                end
+                % for j = 1:(numProducts/10)
+                %     plot(xPos, yPos + j*5, 'k.', 'MarkerSize', 4, 'Color', 'k');  % Use dots instead of circles
+                % end
                 
                 % Display the buffered product count as text below the dot
-                text(xPos, yPos - 10, num2str(numProducts), 'HorizontalAlignment', 'center');
+                text(xPos, yPos - 10, num2str(numProducts), 'HorizontalAlignment', 'left', 'Rotation', -90,'FontSize',8);
             end
         end
 

@@ -2,6 +2,7 @@ classdef Supply < handle
     %UNTITLED12 Summary of this class goes here
     %   Detailed explanation goes here
 
+    
     properties %% Supply class properties
         supId               % ID Number
         supRateMax          % Maximum supply rate per time unit
@@ -13,16 +14,16 @@ classdef Supply < handle
 
     methods
         function obj = Supply(supId, location, sizeS)
-            disp('Started creating a supply...');
+            % disp('Started creating a supply...');
             obj.supId = supId;
             obj.location = location;
             obj.size = sizeS;
 
             % Loading supply characteristics
-            obj.supRateMax = 1000;  % Maximum supply rate per time step
-            obj.productOut = 5;     % Initialize outgoing product
+            obj.supRateMax = 100000;  % Maximum supply rate per time step
+            obj.productOut = randi([1,50], 1);     % Initialize outgoing product
 
-            disp('Finished creating a supply...');
+            % disp('Finished creating a supply...');
         end
 
         function supplyProducts(obj)
@@ -48,15 +49,15 @@ classdef Supply < handle
             gridRows = ceil(maxProducts / gridCols);
             
             % Place products in a uniform grid inside the box
-            for i = 1:numProducts
-                col = mod(i-1, gridCols) + 1;
-                row = ceil(i / gridCols);
-                plot(x + (col - 0.5) * (obj.size / gridCols), ...
-                     y + (row - 0.5) * (obj.size / gridRows), '.', 'MarkerSize', 4, 'Color', 'k');  % Dots for products
-            end
+            % for i = 1:numProducts
+            %     col = mod(i-1, gridCols) + 1;
+            %     row = ceil(i / gridCols);
+            %     plot(x + (col - 0.5) * (obj.size / gridCols), ...
+            %          y + (row - 0.5) * (obj.size / gridRows), '.', 'MarkerSize', 4, 'Color', 'k');  % Dots for products
+            % end
             
             % Display the product count as a number on top of the supplier box
-            text(obj.location(1), obj.location(2) + obj.size/2 + 10, num2str(numProducts), 'HorizontalAlignment', 'center');
+            text(obj.location(1), obj.location(2) + obj.size/2 + 10, num2str(numProducts), 'HorizontalAlignment', 'center','FontSize',8);
         end
 
 
