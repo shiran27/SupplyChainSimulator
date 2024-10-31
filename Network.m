@@ -25,6 +25,9 @@ classdef Network < handle
         numUpdates         % Number of updates at the network level
         numDays
         numWeeks
+
+        consensusErrorHistory
+        trackingErrorHistory
     end
 
     methods
@@ -49,13 +52,13 @@ classdef Network < handle
 
             % Adjoint matrix of the communication network:
             % obj.generateSparseAdj();  
-            obj.generateDistanceBasedAdj(200);  % Load an initial graph Adj matrix (reference)
+            obj.generateDistanceBasedAdj(100);  % 200 Load an initial graph Adj matrix (reference)
             
             % Load all matrices
             obj.computeNetworkMatrices();
 
-            gammaCostCoef = 10^6;
-            comCostLimit = 0.01;
+            gammaCostCoef = 10^3; %10^6;
+            comCostLimit = 0.001; %0.01;
             isSoft = 0;
             obj.globalControlDesign(gammaCostCoef,comCostLimit,isSoft); % Design and Load KGlobal
             obj.setAdjointMatrixAndNeighborsAndControllers(); % Load Graph, neighbors and controllers from KGlobal
@@ -80,11 +83,34 @@ classdef Network < handle
                 obj.numDays = dayNum;
                 obj.numWeeks = floor(dayNum/7);
 
-                if dayNum == 10 % once every three days, a random physical link fails
-                    chainId = randi([1,obj.numOfChains]);
-                    linkId = randi([1,obj.numOfInventories]);
+
+                if dayNum == 10 || dayNum == 20   % once every three days, a random physical link fails
+                    chainId = 1;
+                    linkId = 1;
+                    obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
+
+                    chainId = ceil(obj.numOfChains/2);
+                    linkId = ceil(obj.numOfInventories/2);
+                    obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
+
+                    chainId = obj.numOfChains;
+                    linkId = obj.numOfInventories;
                     obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
                 end
+
+                % if dayNum == 15 || dayNum == 25   % once every three days, a random physical link fails
+                %     chainId = randi([1,obj.numOfChains]);
+                %     invenId = randi([1,obj.numOfInventories]);
+                %     obj.chains{chainId}.inventories{invenId}.state = 10;
+                % 
+                %     chainId = randi([1,obj.numOfChains]);
+                %     invenId = randi([1,obj.numOfInventories]);
+                %     obj.chains{chainId}.inventories{invenId}.state = 10;
+                % 
+                %     chainId = randi([1,obj.numOfChains]);
+                %     invenId = randi([1,obj.numOfInventories]);
+                %     obj.chains{chainId}.inventories{invenId}.state = 10;
+                % end
 
             end
 
@@ -203,7 +229,7 @@ classdef Network < handle
 
         function [statusGlobal, gammaTildeVal, comCost, conCost, KNorm] = globalControlDesign(obj, gammaCostCoef, comCostLimit, isSoft)
 
-            gammaBar = 1000;
+            gammaBar = 250;
             epsilon = 0.000001; % Minimum value
             debugMode = 0;
 
@@ -364,23 +390,13 @@ classdef Network < handle
 
             KNorm = norm(KVal);
 
-
-            % X_p_11Val = value(X_p_11);
-            % L_eta_yVal = value(L_eta_y);
-            % M_eta_yVal = X_p_11Val\L_eta_yVal; % This is BCurl*KCurl, KCurl needs to be found from this
-            % % Recall that we used: L_eta_y = BCurl*KShadow (to embed the structure in L_eta_y
-            % KVal = pinv(B)*M_eta_yVal % It turns out that our BCurl has a very nice pinv - check this!
-
-            
-
             % Load KVal elements into a cell structure K{i,j} (i.e., partitioning KVal
             % into N\times N blocks)
             factorVal = 0.001;
             maxNorm = max(abs(KVal(:)));
+            KVal(abs(KVal)<factorVal*maxNorm) = 0;
             if ~isSoft
-                KVal(adjMat==0) = 0;
-            else
-                KVal(abs(KVal)<factorVal*maxNorm) = 0;
+                % KVal(adjMat==0) = 0;
             end
 
             obj.KGlobal = KVal;
@@ -520,10 +536,15 @@ classdef Network < handle
             % The ranges are selected in logarithmic scales.
         
             % Define the ranges in the log domain
-            pValRange = logspace(-2, 2, 5);  % pVal values in logarithmic scale
+            pValRange = logspace(-2, 2, 9);  % pVal values in logarithmic scale
             deltaCostCoefRange = logspace(-4, 6, 6);  % deltaCostCoef range
             gammaCostCoefRange = logspace(-4, 6, 6); % gammaCostCoef range
             comCostLimitRange = logspace(-3, 1, 5); % comCostLimit range
+
+            % pValRange = logspace(-3, 2, 60);  % pVal values in logarithmic scale
+            % deltaCostCoefRange = 1;  % deltaCostCoef range
+            % gammaCostCoefRange = 1; % gammaCostCoef range
+            % comCostLimitRange = logspace(-3, 1, 5); % comCostLimit range
         
             % Preallocate result vectors
             numP = length(pValRange);
@@ -664,7 +685,7 @@ classdef Network < handle
             c1 = 1 / (maxLNorm - minLNorm);
             c2 = 1 / (maxKNorm - minKNorm);
             c3 = 1 / (maxGammaTilde - minGammaTilde);
-            c4 = 1/ (maxKLinks - minKLinks);
+            c4 = 1 / (maxKLinks - minKLinks);
         
             % Initialize variables to store the best values
             bestObjective = inf;
@@ -735,7 +756,7 @@ classdef Network < handle
             % disp('Best parameters saved to "results/bestParameters.mat".');
         end 
 
-        
+
         % Generate a sparse K matrix for closest neighboring inventories
         function generateSparseAdj(obj)
             N = obj.numOfChains;  % Number of chains
@@ -797,11 +818,11 @@ classdef Network < handle
                             % If the distance is within the threshold, assign a random value to K
                             if distance <= distanceThreshold
                                 adjMat((i-1)*n + inven_i, (j-1)*n + inven_j) = 1;  % Random scaling factor
+                                costMat((i-1)*n + inven_i, (j-1)*n + inven_j) = 1*distance;
                             else
                                 adjMat((i-1)*n + inven_i, (j-1)*n + inven_j) = 0;  % No connection if too far
+                                costMat((i-1)*n + inven_i, (j-1)*n + inven_j) = 1*distance;
                             end
-
-                            costMat((i-1)*n + inven_i, (j-1)*n + inven_j) = distance;
                         end
                     end
                 end
@@ -859,19 +880,19 @@ classdef Network < handle
                 for invenIdx = 1:n
                     % Get the location of the inventory
                     inventory = obj.chains{chainIdx}.inventories{invenIdx};
-                    plot(inventory.location(1), inventory.location(2), 'ko', 'MarkerSize', 10, 'MarkerFaceColor', 'k');  % Plot inventory as black dot
+                    plot(inventory.location(1), inventory.location(2), 'ko', 'MarkerSize', 10, 'MarkerFaceColor', [0.7,1,0.7]);  % Plot inventory as black dot
                 end
             end
 
             for chainIdx = 1:N
                 inventory = obj.chains{chainIdx}.inventories{1};
-                text(inventory.location(1) - 15, inventory.location(2), ...
+                text(inventory.location(1) - 30, inventory.location(2), ...
                             sprintf('Chain %d', chainIdx), 'HorizontalAlignment', 'center','FontSize',8);
             end
 
             for invenIdx = 1:n
                 inventory = obj.chains{1}.inventories{invenIdx};
-                    text(inventory.location(1), inventory.location(2) - 10, ...
+                    text(inventory.location(1), inventory.location(2) - 15, ...
                         sprintf('Inventory %d', invenIdx), 'HorizontalAlignment', 'center','FontSize',8);
             end
         
@@ -974,6 +995,9 @@ classdef Network < handle
             % Store the performance metrics
             consensusErrorHistory = avgConsensusError * (100/500);
             trackingErrorHistory = avgTrackingError * (100/500);
+
+            obj.consensusErrorHistory = consensusErrorHistory;
+            obj.trackingErrorHistory = trackingErrorHistory;
             
             % Plot the accumulated error profiles
             plot(1:L, consensusErrorHistory, 'r.-', 'LineWidth', 1, 'DisplayName', 'Consensus Error');
@@ -990,63 +1014,17 @@ classdef Network < handle
         function plotDemandProfiles(obj)
             L = length(obj.chains{1}.demander.demandHistory);
             N = obj.numOfChains;                 % Number of chains
+            hArray = [];
             for i = 1:N  % Loop over all chains
-                plot(1:L, obj.chains{i}.demander.demandHistory, '.-', 'LineWidth', 1, 'DisplayName', ['Demand ',num2str(i)]);
+                h = plot(1:L, obj.chains{i}.demander.demandHistory, '.-', 'LineWidth', 1, 'DisplayName', ['Demand ',num2str(i)]);
+                hArray = [hArray, h];
+                color1 = get(h, 'Color');
+                plot(1:L, mean(obj.chains{i}.demander.dailyMeans)*ones(1,L), '--', 'Color', color1, 'LineWidth', 0.5)
             end
-            
             xlabel('Time Step');
             ylabel('Demand Value');
-            legend('Location', 'northeast');
+            legend(hArray, 'Location', 'northeast');
         end
-
-        % function plotNetworkPerformance(obj)
-        % 
-        %     % for i = 1:obj.numOfChains
-        %     %     obj.chains{i}.plotPerformance();
-        %     % end
-        % 
-        %     n = obj.chains{1}.numOfInventories;
-        %     N = obj.numOfChains;
-        %     lineWidthVal = 1;
-        %     figure;
-        %     sgtitle('Average Performance Metrics');
-        % 
-        %     % Create a tiled layout with 3 rows and 1 column with increased height
-        %     t = tiledlayout(2, 1, 'TileSpacing', 'loose', 'Padding', 'loose');  % Adjust TileSpacing and Padding for more space
-        % 
-        %     nexttile;
-        %     hold on; grid on;
-        %     for k = 1:n
-        %         conErrorProfile = abs(obj.chains{1}.inventories{k}.consensusErrorHistory);
-        %         for i = 2:N
-        %             conErrorProfile = conErrorProfile + abs(obj.chains{i}.inventories{k}.consensusErrorHistory);
-        %         end
-        %         conErrorProfile = (conErrorProfile/N)*(100/500);
-        %         plot(conErrorProfile, '.-', 'LineWidth', lineWidthVal);
-        %     end
-        %     ylabel('Mean Abs Con. Error');
-        %     % axis([-inf,inf,-500,500])
-        %     legend(arrayfun(@(i) ['Inv ', num2str(i)], 1:n, 'UniformOutput', false));
-        %     hold off;
-        % 
-        %     nexttile;
-        %     hold on; grid on;
-        %     for k = 1:n
-        %         traErrorProfile = abs(obj.chains{1}.inventories{k}.trackingErrorHistory);
-        %         for i = 2:N
-        %             traErrorProfile = traErrorProfile + abs(obj.chains{i}.inventories{k}.trackingErrorHistory);
-        %         end
-        %         traErrorProfile = (traErrorProfile/N)*(100/500);
-        %         plot(traErrorProfile, '.-', 'LineWidth', lineWidthVal);
-        %     end
-        %     ylabel('Mean Abs. Tra. Error');
-        %     xlabel('Time Step');
-        %     % axis([-inf,inf,-500,500])
-        %     legend(arrayfun(@(i) ['Inv ', num2str(i)], 1:n, 'UniformOutput', false));
-        %     hold off;
-        % 
-        % 
-        % end
 
         function runSimulationAndSaveVideos(obj, fileTag, tMax)
             % Define video file names using the provided fileTag
@@ -1262,7 +1240,59 @@ classdef Network < handle
 
         end
 
-                    
+        function printDefaultProperties(obj)
+            fprintf('Supply Chain Network Default Parameters:\n\n');
+            
+            % Supply Class - Access the first instance in the network
+            fprintf('--- Supply Class ---\n');
+            fprintf('supRateMax: %f\n', obj.chains{1}.supplier.supRateMax);
+            
+            % Demand Class - Access the first instance in the network
+            fprintf('\n--- Demand Class ---\n');
+            disp('dailyMeans Obtained using: 100 + 20*randi([1,numOfChains],7,1) + 20*demId;')
+            for i = 1:1:obj.numOfChains
+                fprintf('Chain %f\n',i)
+                fprintf('dailyMeans: ')
+                disp(obj.chains{i}.demander.dailyMeans);
+                fprintf('demRateMean (mean): %f\n', mean(obj.chains{i}.demander.dailyMeans));
+                fprintf('demRateStd (0.1x): %f\n', 0.1*mean(obj.chains{i}.demander.dailyMeans));
+            end
+            
+            % Inventory Class - Access the first inventory in the first chain
+            
+            fprintf('\n--- Inventory Class ---\n');
+            fprintf('refLevel: %f\n', obj.chains{1}.inventories{1}.refLevel);
+            fprintf('maxLevel: %f\n', obj.chains{1}.inventories{1}.maxLevel);
+            fprintf('minLevel: %f\n', obj.chains{1}.inventories{1}.minLevel);
+            fprintf('perishRate: %f\n', obj.chains{1}.inventories{1}.perishRate);
+            disp('wasteRateMean Obtained using: 5 + randi([1,5])')
+            disp('wasteRateStd Obtained using: 0.2*mean')
+            for i = 1:1:obj.numOfChains
+                for k = 1:1:obj.numOfInventories
+                    fprintf('Chain %f',i)
+                    fprintf(', Inventory %f\n',k)
+                    fprintf('wasteRateMean: %f\n', obj.chains{i}.inventories{k}.wasteRateMean);
+                    fprintf('wasteRateStd (0.2x): %f\n', obj.chains{i}.inventories{k}.wasteRateStd);
+                end
+            end
+            
+            % Physical Link Class - Access the first physical link in the first chain
+            fprintf('\n--- Physical Link Class ---\n');
+            disp('tranDelay Obtained using: 1 + randi([1,4])')
+            disp('wasteRateMean Obtained using: 5 + randi([1,5])')
+            disp('wasteRateStd Obtained using: 0.2xmean')
+            for i = 1:1:obj.numOfChains
+                for k = 1:1:obj.numOfInventories
+                    fprintf('Chain %f',i)
+                    fprintf(', Inventory %f\n',k)
+                    fprintf('tranDelay: %d\n', obj.chains{i}.phyLinks{k}.tranDelay);
+                    fprintf('wasteRateMean: %f\n', obj.chains{i}.phyLinks{k}.wasteRateMean);
+                    fprintf('wasteRateStd (0.2x): %f\n', obj.chains{i}.phyLinks{k}.wasteRateStd);
+                end
+            end
+            
+        end
+            
         
         function draw(obj, currentTime)
             % Draw each chain in the network
@@ -1270,15 +1300,17 @@ classdef Network < handle
                 obj.chains{i}.draw();
             end
             
-             % Display the global cumulative average error on the plot
-            timeText = ['Time Step: ', num2str(currentTime), ' (Hours); Day: ', num2str(obj.numDays),'; Week: ', num2str(obj.numWeeks)];
-            text(0, 25, timeText, 'FontSize', 10, 'FontWeight', 'bold', 'Color', 'k');
+            % Display the global cumulative average error on the plot
+            timeText = ['Time Steps: ', num2str(currentTime), '; Days: ', num2str(obj.numDays),'; Hours: ', num2str(mod(currentTime,24)), '.'];
+            text(0, 40, timeText, 'FontSize', 8, 'Color', 'k');
             
-            errorText = ['Mean Absolute Percentage Tracking Error: ', num2str(obj.cumMeanAbsTraError*(100/500),4),'%'];
-            text(0, 10, errorText, 'FontSize', 10, 'FontWeight', 'bold', 'Color', 'r');  % Display the global average error below the time
+            % Percentage Cumulative Mean Absolute Error (Tracking) =
+            % Tracking PCMAE
+            errorText = ['Tracking PCMAE: ', num2str(obj.cumMeanAbsTraError*(100/500),4),'%'];
+            text(0, 20, errorText, 'FontSize', 8, 'Color', 'b');  % Display the global average error below the time
 
-            errorText = ['Mean Absolute Percentage Consensus Error: ', num2str(obj.cumMeanAbsConError*(100/500),4),'%'];
-            text(0, -5, errorText, 'FontSize', 10, 'FontWeight', 'bold', 'Color', 'r');  % Display the global average error below the time
+            errorText = ['Consensus PCMAE: ', num2str(obj.cumMeanAbsConError*(100/500),4),'%'];
+            text(0, 0, errorText, 'FontSize', 8, 'Color', 'r');  % Display the global average error below the time
         end
 
     end

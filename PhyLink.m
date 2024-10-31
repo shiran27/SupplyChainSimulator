@@ -79,12 +79,14 @@ classdef PhyLink < handle
                 
                 % Vertical column of dots to represent number of products in this buffer spot
                 numProducts = obj.delayBuffer(i);
-                % for j = 1:(numProducts/10)
-                %     plot(xPos, yPos + j*5, 'k.', 'MarkerSize', 4, 'Color', 'k');  % Use dots instead of circles
-                % end
+                heightVal = numProducts/20;
+                if heightVal > 30
+                    heightVal = 30;
+                end
+                plot([xPos, xPos], [yPos, yPos + heightVal], '-k', 'MarkerSize', 4, 'Color', 'k');  % Use dots instead of circle
                 
                 % Display the buffered product count as text below the dot
-                text(xPos, yPos - 10, num2str(numProducts), 'HorizontalAlignment', 'left', 'Rotation', -90,'FontSize',8);
+                text(xPos, yPos - 10, num2str(numProducts), 'HorizontalAlignment', 'left', 'Rotation', -90,'FontSize',6);
             end
         end
 

@@ -44,20 +44,10 @@ classdef Supply < handle
             
             % Grid arrangement for product dots
             numProducts = floor(obj.productOut);  % Using productOut for supplier
-            gridCols = 5;
-            maxProducts = 100;  % Assume a maximum level for visualization purposes
-            gridRows = ceil(maxProducts / gridCols);
-            
-            % Place products in a uniform grid inside the box
-            % for i = 1:numProducts
-            %     col = mod(i-1, gridCols) + 1;
-            %     row = ceil(i / gridCols);
-            %     plot(x + (col - 0.5) * (obj.size / gridCols), ...
-            %          y + (row - 0.5) * (obj.size / gridRows), '.', 'MarkerSize', 4, 'Color', 'k');  % Dots for products
-            % end
             
             % Display the product count as a number on top of the supplier box
             text(obj.location(1), obj.location(2) + obj.size/2 + 10, num2str(numProducts), 'HorizontalAlignment', 'center','FontSize',8);
+            % text(obj.location(1) - obj.size/2 - 10, obj.location(2), ['Chain ',num2str(obj.supId)] , 'HorizontalAlignment', 'center','FontSize',8);
         end
 
 

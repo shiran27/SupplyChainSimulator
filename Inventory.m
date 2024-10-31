@@ -170,26 +170,39 @@ classdef Inventory < handle
             % Draw the inventory as a rectangle (box)
             x = obj.location(1) - obj.size/2;
             y = obj.location(2) - obj.size/2;
-            rectangle('Position', [x, y, obj.size, obj.size], 'FaceColor', [0.8 0.8 0.8]);
+            rectangle('Position', [x, y, obj.size, obj.size], 'FaceColor', [0.7 1 0.7]);
         
-            % Grid arrangement for product dots
-            numProducts = floor(obj.state);
-            gridCols = 5;
-            maxProducts = obj.maxLevel;  % Maximum number of products (for visualization)
-            gridRows = ceil(maxProducts / gridCols);
+            % Code to plot tracking error (obj.trackingError) and consensus error (obj.consensusError) drawn as verticle
+            % lines drawn parallel to each other on top of a horizontal line drawn in the middle of the box (like an x axis).
+            % Draw a horizontal line at the middle of the box
+            middleY = obj.location(2);
+            line([obj.location(1) - obj.size/3, obj.location(1) + obj.size/3], [middleY, middleY], 'Color', 'k', 'LineWidth', 1);  % Horizontal line
+        
+            del = 2;
+            % Plot tracking error as a vertical line (blue) from the middle line
+            trackErrHeight = obj.trackingError/5;  % Scale error to fit inside the box
+            if trackErrHeight > obj.size/2 - del
+                trackErrHeight = obj.size/2 - del;
+            elseif trackErrHeight < -obj.size/2 + del
+                trackErrHeight = -obj.size/2 + del;
+            end
+            line([obj.location(1) - obj.size/6, obj.location(1) - obj.size/6], ...
+                 [middleY, middleY + trackErrHeight], 'Color', 'b', 'LineWidth', 1.5);  % Blue for tracking error
             
-            % Place products in a uniform grid inside the box
-            % for i = 1:round(numProducts/1)
-            %     col = mod(i-1, gridCols) + 1;
-            %     row = ceil(i / gridCols);
-            %     plot(x + (col - 0.5) * (obj.size / gridCols), ...
-            %          y + (row - 0.5) * (obj.size / gridRows), '.', 'MarkerSize', 4, 'Color', 'k');  % Dots for products
-            % end
-            
+            % Plot consensus error as a vertical line (green) from the middle line
+            conErrHeight = obj.consensusError/5;  % Scale error to fit inside the box
+            if conErrHeight > obj.size/2 - del
+                conErrHeight = obj.size/2 - del;
+            elseif conErrHeight < -obj.size/2 + del
+                conErrHeight = -obj.size/2 + del;
+            end
+            line([obj.location(1) + obj.size/6, obj.location(1) + obj.size/6], ...
+                 [middleY, middleY + conErrHeight], 'Color', 'r', 'LineWidth', 1.5);  % Green for consensus error
+        
+
             % Display the product count as a number on top of the inventory box
-            text(obj.location(1), obj.location(2) - obj.size/2 - 10, num2str(numProducts), 'HorizontalAlignment', 'center','FontSize',8);
+            text(obj.location(1), obj.location(2) - obj.size/2 - 10, ['x:',num2str(obj.state)], 'HorizontalAlignment', 'center', 'Color', 'b','FontSize',8);
             text(obj.location(1), obj.location(2) + obj.size/2 + 10, ['u:',num2str(obj.orderIn)], 'HorizontalAlignment', 'center', 'Color', 'r','FontSize',8);
-            % text(obj.location(1), obj.location(2) - obj.size/2 - 25, num2str(obj.trackingError), 'HorizontalAlignment', 'center', 'Color', 'g','FontSize',8);
         end
 
 
