@@ -61,7 +61,7 @@ classdef Inventory < handle
             obj.minLevel = 10;
 
             obj.perishRate = 0.1;
-            obj.wasteRateMean = 5 + randi([1,5]);
+            obj.wasteRateMean = 10 + 2*randi([1,5]) + 2*chainId;
             obj.wasteRateStd = 0.2*obj.wasteRateMean;
             obj.waste = obj.wasteRateMean;
 

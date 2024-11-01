@@ -15,7 +15,7 @@ classdef PhyLink < handle
     end
 
     methods
-        function obj = PhyLink(id, chainId, location, tranDelay, upInven, downInven)
+        function obj = PhyLink(id, location, tranDelay, upInven, downInven)
             % disp('Started creating a PhyLink...');
             obj.phyLinkId = id;
 
@@ -23,7 +23,7 @@ classdef PhyLink < handle
             obj.upInven = upInven;
             obj.downInven = downInven;
             obj.tranDelay = tranDelay;
-            obj.wasteRateMean = 10 + 2*randi([1,5]) + 2*chainId;      % Mean waste rate
+            obj.wasteRateMean = 10+2*randi([1,5])+2*Chain;      % Mean waste rate
             obj.wasteRateStd = 0.2*obj.wasteRateMean;       % Standard deviation of the waste rate
             obj.waste = obj.wasteRateMean;
 

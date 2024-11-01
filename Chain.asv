@@ -115,8 +115,8 @@ classdef Chain < handle
             obj.computeChainMatrices();
 
             % obj.localPassivityAnalysis();
-            pVal = NaN;
-            deltaCostCoef = NaN;
+            pVal = 0.1;
+            deltaCostCoef = 1;
             obj.localControlDesign(pVal,deltaCostCoef);
             
             obj.numUpdates = 0;
@@ -408,8 +408,8 @@ classdef Chain < handle
                 constraints = [con1, con2, con3, con4, con5, con6, con7, con8];
                 costFunction =  1*gammaTilde - deltaCostCoef*delta + 0*trace(P) + 0*norm(K);
             else
-                constraints = [con1, con2, con3, con4, con7, con8];
-                costFunction = 0;
+                constraints = [con1, con2];
+                costFunction = 0*trace(P);
             end
 
             solverOptions = sdpsettings('solver', 'mosek', 'verbose', 0, 'debug', 0);

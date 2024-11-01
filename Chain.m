@@ -82,7 +82,7 @@ classdef Chain < handle
                     location(1,1) = location(1,1) + sizeS/2; 
                     location(2,1) = location(2,1) - sizeI/2; 
                     tranDelay = 1+randi([1,4]); %5
-                    phyLink = PhyLink(phyLinkId, location, tranDelay, obj.supplier, obj.inventories{k}); 
+                    phyLink = PhyLink(phyLinkId, chainId, location, tranDelay, obj.supplier, obj.inventories{k}); 
                     % Assign phyLink to the first inventory's phyLinkIn and supplier's phyLinkOut
                     obj.inventories{k}.phyLinkIn = phyLink;
                     obj.supplier.phyLinkOut = phyLink;
@@ -92,7 +92,7 @@ classdef Chain < handle
                     location(1,1) = location(1,1) + sizeI/2; 
                     location(2,1) = location(2,1) - sizeI/2; 
                     tranDelay = 1+randi([1,4]); %5
-                    phyLink = PhyLink(phyLinkId, location, tranDelay, obj.inventories{k-1}, obj.inventories{k});
+                    phyLink = PhyLink(phyLinkId, chainId, location, tranDelay, obj.inventories{k-1}, obj.inventories{k});
                     % Assign phyLink to the inventories' phyLinkIn and phyLinkOut
                     obj.inventories{k-1}.phyLinkOut = phyLink;  % Outgoing link for previous inventory
                     obj.inventories{k}.phyLinkIn = phyLink;     % Incoming link for current inventory
@@ -102,7 +102,7 @@ classdef Chain < handle
                     location(1,1) = location(1,1) + sizeI/2; 
                     location(2,1) = location(2,1) - sizeD/2; 
                     tranDelay = 1;
-                    phyLink = PhyLink(phyLinkId, location, tranDelay, obj.inventories{k-1}, obj.demander);
+                    phyLink = PhyLink(phyLinkId, chainId, location, tranDelay, obj.inventories{k-1}, obj.demander);
                     % Assign phyLink to the last inventory's phyLinkOut and demander's phyLinkIn
                     obj.inventories{k-1}.phyLinkOut = phyLink;
                     obj.demander.phyLinkIn = phyLink;
@@ -409,7 +409,7 @@ classdef Chain < handle
                 costFunction =  1*gammaTilde - deltaCostCoef*delta + 0*trace(P) + 0*norm(K);
             else
                 constraints = [con1, con2];
-                costFunction = 0;
+                costFunction = 0*trace(P);
             end
 
             solverOptions = sdpsettings('solver', 'mosek', 'verbose', 0, 'debug', 0);
