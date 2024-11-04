@@ -6,6 +6,7 @@ clc
 rng(7)
 numOfChains = 2            % Number of parallel chains
 numOfInventories = 3       % Number of inventories in each chain
+tMax = 24*30
 
 % Create Network
 netId = 1;               % Supply chain network ID
@@ -17,9 +18,10 @@ close all
 clc
 
 folderName = 'Results/Case1/'
-load('tempNet1.mat')
+netFileName = 'tempNet1.mat'
+load(netFileName)
 rng(7)
-net.gridSearchCompleteDesign(folderName);
+net.gridSearchCompleteDesign(folderName,netFileName);
 
 
 %% Basic Example: Case 2
@@ -30,6 +32,7 @@ clc
 rng(7)
 numOfChains = 3 %4        % Number of parallel chains
 numOfInventories = 4 %5   % Each chain has 5 inventories
+tMax = 24*30
 
 % Create Network
 netId = 1;               % Supply chain network ID
@@ -41,9 +44,10 @@ close all
 clc
 
 folderName = 'Results/Case2/'
-load('tempNet2.mat')
+netFileName = 'tempNet2.mat'
+load(netFileName)
 rng(7)
-net.gridSearchCompleteDesign(folderName);
+net.gridSearchCompleteDesign(folderName,netFileName);
 
 
 %% Basic Example: Case 3
@@ -54,6 +58,7 @@ clc
 rng(7)
 numOfChains = 4            % Number of parallel chains
 numOfInventories = 5     % Number of inventories in each chain
+tMax = 24*30
 
 % Create Network
 netId = 1;               % Supply chain network ID
@@ -65,6 +70,7 @@ close all
 clc
 
 folderName = 'Results/Case3/'
-load('tempNet3.mat')
+netFileName = 'tempNet3.mat'
+load(netFileName)
 rng(7)
-net.gridSearchCompleteDesign(folderName);
+net.gridSearchCompleteDesign(folderName,netFileName);

@@ -307,18 +307,19 @@ classdef Chain < handle
             nu = sdpvar(1,1,'full');
             rhoTilde = sdpvar(1,1,'full'); %rhoTilde = 1/rho
 
+            C = eye(ni);
+            X_22Tilde = rhoTilde*eye(ni);
+            X_12 = 0.5*eye(ni);
+
             if ~isnan(pVal)
                 gammaTilde = sdpvar(1,1,'full');
-                delta = sdpvar(1,1,'full');
-                C = eye(ni);
-                X_22Tilde = rhoTilde*eye(ni);
-                X_12 = 0.5*eye(ni);
+                % delta = sdpvar(1,1,'full');
             else
-                C = obj.CCurl;
-                X_22Tilde = rhoTilde*eye(n);
-                X_12 = 0.5*eye(ni,n); 
+                % C = obj.CCurl;
+                % X_22Tilde = rhoTilde*eye(n);
+                % X_12 = 0.5*eye(ni,n); 
             end
-            
+
             A = obj.ACurl;
             B = obj.BCurl;
 
@@ -340,20 +341,22 @@ classdef Chain < handle
             constraintMats{end+1} = P;
 
             % To check passivity
-            
+            W = [X_22Tilde, O_ni_ni, C*P, O_ni_ni; 
+                 O_ni_ni', P, A*P + B*K, I_ni;
+                 P*C', P*A'+K'*B', P, P'*C'*X_21;
+                 O_ni_ni', I_ni, X_12*C*P, X_11];
+
             if ~isnan(pVal)
-                W = [X_22Tilde, O_ni_ni, C*P, O_ni_ni; 
-                     O_ni_ni', P, A*P + B*K, I_ni;
-                     P*C', P*A'+K'*B', P, P'*C'*X_21;
-                     O_ni_ni', I_ni, X_12*C*P, X_11];
+                
             else
                 % W = [X_22Tilde, O_n_ni, C*P, O_n_ni; 
                 %  O_n_ni', P, A*P + B*K, I_ni;
                 %  P*C', P*A'+K'*B', P, P'*C'*X_21;
                 %  O_n_ni', I_ni, X_12*C*P, X_11];
-                W = [P, A*P + B*K;
-                 P*A'+K'*B', P];
+                % W = [P, A*P + B*K;
+                %  P*A'+K'*B', P];
             end
+
             tagName = ['W_',num2str(i)];
             constraintTags{end+1} = tagName;
             con2 = tag(W >= epsilon*eye(size(W)), tagName);
@@ -379,15 +382,14 @@ classdef Chain < handle
                       pVal*nu, 0, 0.5*pVal*rhoTilde, gammaTilde];
                 tagName = ['Global_Helper_',num2str(i)];
                 constraintTags{end+1} = tagName;
-                con5 = tag(W0 >= delta*eye(size(W0)), tagName);
+                con5 = tag(W0 >= epsilon*eye(size(W0)), tagName);
                 constraintMats{end+1} = W0;
             
-
                 % To enforce delta >= 0 
-                tagName = ['delta_',num2str(i)];
-                constraintTags{end+1} = tagName;
-                con6 = tag(delta >= epsilon, tagName);
-                constraintMats{end+1} = delta;
+                % tagName = ['delta_',num2str(i)];
+                % constraintTags{end+1} = tagName;
+                % con6 = tag(delta >= epsilon, tagName);
+                % constraintMats{end+1} = delta;
             end
 
 
@@ -405,11 +407,14 @@ classdef Chain < handle
 
 
             if ~isnan(pVal)
-                constraints = [con1, con2, con3, con4, con5, con6, con7, con8];
-                costFunction =  1*gammaTilde - deltaCostCoef*delta + 0*trace(P) + 0*norm(K);
+                constraints = [con1, con2, con3, con4, con5, con7, con8];
+                % costFunction = 1*gammaTilde + deltaCostCoef*delta + 1*trace(P) + 0*norm(K);
+                % costFunction = 1*gammaTilde + 1*trace(P);
+                costFunction = 1*gammaTilde + deltaCostCoef*trace(P);
             else
-                constraints = [con1, con2];
-                costFunction = 0*trace(P);
+                constraints = [con1, con2, con3, con4, con7, con8];
+                % constraints = [con1, con2];
+                costFunction = -1*nu + 1*rhoTilde + deltaCostCoef*trace(P);
             end
 
             solverOptions = sdpsettings('solver', 'mosek', 'verbose', 0, 'debug', 0);
@@ -427,7 +432,7 @@ classdef Chain < handle
             LNormVal = norm(LVal);
             if ~isnan(pVal)
                 gammaTildeVal = value(gammaTilde);
-                deltaVal = value(delta);
+                deltaVal = 0;
             else
                 gammaTildeVal = 0;
                 deltaVal = 0;

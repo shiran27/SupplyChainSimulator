@@ -84,7 +84,7 @@ classdef Network < handle
                 obj.numWeeks = floor(dayNum/7);
 
 
-                if dayNum == 15   % once every three days, a random physical link fails
+                if dayNum == 10    % once every three days, a random physical link fails
                     chainId = randi([1,obj.numOfChains]);
                     linkId = randi([1,obj.numOfInventories]);
                     obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
@@ -93,28 +93,28 @@ classdef Network < handle
                     linkId = randi([1,obj.numOfInventories]);
                     obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
 
-                    chainId = randi([1,obj.numOfChains]);
-                    linkId = randi([1,obj.numOfInventories]);
-                    obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
+                    % chainId = randi([1,obj.numOfChains]);
+                    % linkId = randi([1,obj.numOfInventories]);
+                    % obj.chains{chainId}.phyLinks{linkId}.delayBuffer = 0*obj.chains{chainId}.phyLinks{linkId}.delayBuffer;
                 end
 
-                % if dayNum == 20   % once every three days, a random physical link fails
-                %     chainId = randi([1,obj.numOfChains]);
-                %     invenId = randi([1,obj.numOfInventories]);
-                %     obj.chains{chainId}.inventories{invenId}.state = 100;
-                % 
-                %     chainId = randi([1,obj.numOfChains]);
-                %     invenId = randi([1,obj.numOfInventories]);
-                %     obj.chains{chainId}.inventories{invenId}.state = 900;
-                % 
-                %     chainId = randi([1,obj.numOfChains]);
-                %     invenId = randi([1,obj.numOfInventories]);
-                %     obj.chains{chainId}.inventories{invenId}.state = 700;
-                % 
-                %     chainId = randi([1,obj.numOfChains]);
-                %     invenId = randi([1,obj.numOfInventories]);
-                %     obj.chains{chainId}.inventories{invenId}.state = 300;
-                % end
+                if dayNum == 20   % once every three days, a random physical link fails
+                    chainId = randi([1,obj.numOfChains]);
+                    invenId = randi([1,obj.numOfInventories]);
+                    obj.chains{chainId}.inventories{invenId}.state = 0;
+
+                    chainId = randi([1,obj.numOfChains]);
+                    invenId = randi([1,obj.numOfInventories]);
+                    obj.chains{chainId}.inventories{invenId}.state = 0;
+
+                    chainId = randi([1,obj.numOfChains]);
+                    invenId = randi([1,obj.numOfInventories]);
+                    obj.chains{chainId}.inventories{invenId}.state = 0;
+
+                    chainId = randi([1,obj.numOfChains]);
+                    invenId = randi([1,obj.numOfInventories]);
+                    obj.chains{chainId}.inventories{invenId}.state = 0;
+                end
 
             end
 
@@ -379,10 +379,10 @@ classdef Network < handle
 
             if ~isSoft
                 % Total Cost Function
-                costFunction = gammaTilde + 0*trace(P);
+                costFunction = 1*costFun0 + gammaCostCoef*(gammaTilde/gammaBar) + 1*trace(P);
             else
                 % Total Cost Function
-                costFunction = 1*costFun0 + gammaCostCoef*(gammaTilde/gammaBar) + 0*trace(P); % soft %%% Play with this
+                costFunction = 1*costFun0 + gammaCostCoef*(gammaTilde/gammaBar) + 1*trace(P); % soft %%% Play with this
             end
             
             %% Solve the LMI problem
@@ -547,7 +547,7 @@ classdef Network < handle
         end
 
 
-        function gridSearchCompleteDesign(obj, folderName)
+        function gridSearchCompleteDesign(obj, folderName, netFileName)
             % GRIDSEARCHCOMPLETEDESIGN - Performs a grid search over pVal, deltaCostCoef, gammaCostCoef, and comCostLimit.
             %
             % This function evaluates control design performance for different values of
@@ -555,15 +555,10 @@ classdef Network < handle
             % The ranges are selected in logarithmic scales.
         
             % Define the ranges in the log domain
-            pValRange = logspace(-5, 1, 13);  % pVal values in logarithmic scale
+            pValRange = logspace(-2, 1, 7);  % pVal values in logarithmic scale
             deltaCostCoefRange = logspace(-3, 6, 4);  % deltaCostCoef range
-            gammaCostCoefRange = logspace(0, 4, 3); % gammaCostCoef range
-            comCostLimitRange = logspace(-5, -1, 5); % comCostLimit range
-
-            % pValRange = logspace(-3, 2, 60);  % pVal values in logarithmic scale
-            % deltaCostCoefRange = 1;  % deltaCostCoef range
-            % gammaCostCoefRange = 1; % gammaCostCoef range
-            % comCostLimitRange = logspace(-3, 1, 5); % comCostLimit range
+            gammaCostCoefRange = logspace(-2, 4, 4); % gammaCostCoef range
+            comCostLimitRange = logspace(-4, -1, 4); % comCostLimit range
         
             % Preallocate result vectors
             numP = length(pValRange);
@@ -571,7 +566,7 @@ classdef Network < handle
             numGamma = length(gammaCostCoefRange);
             numComCost = length(comCostLimitRange);
         
-            [LNorm, KNorm, gammaTilde, KLinks] = deal(nan(numGamma, numDelta, numP, numComCost));  % Result vectors
+            [LNorm, KNorm, gammaTilde, KLinks, JConVals, JTraVals] = deal(nan(numGamma, numDelta, numP, numComCost));  % Result vectors
 
             isSoft = 1;
         
@@ -591,81 +586,105 @@ classdef Network < handle
                             pVal = pValRange(pIdx);
                             disp(['Evaluating pVal = ', num2str(pVal)]);
         
+                            load(netFileName,'net','tMax')
+                            rng(7)
+
                             % Execute local designs
                             totalLNorm = 0;
                             totalStatusLocal = 1;
-                            LVal = cell(obj.numOfChains,1);
                             for i = 1:1:obj.numOfChains
-                                [statusLocal, ~, ~, LNormVal, ~, ~] = obj.chains{i}.localControlDesign(pVal, deltaCostCoef);
+                                [statusLocal, ~, ~, LNormVal, ~, ~] = net.chains{i}.localControlDesign(pVal, deltaCostCoef);
                                 if ~statusLocal
                                     totalStatusLocal = 0;
                                     break;
                                 else
                                     totalLNorm = totalLNorm + LNormVal;
-                                    LVal{i} = obj.chains{i}.LLocal;
                                 end
                             end
                             totalLNorm = totalLNorm / obj.numOfChains;
         
                             % Execute global designs if local designs were successful
                             if totalStatusLocal
-                                [statusGlobal, gammaTildeVal, ~, ~, KNormVal] = obj.globalControlDesign(gammaCostCoef, comCostLimit, isSoft);
+                                [statusGlobal, gammaTildeVal, ~, ~, KNormVal] = net.globalControlDesign(gammaCostCoef, comCostLimit, isSoft);
                                 % Store results if the global control design is feasible (statusGlobal == 1)
                                 if statusGlobal == 1
                                     LNorm(gIdx, dIdx, pIdx, comIdx) = totalLNorm;
                                     KNorm(gIdx, dIdx, pIdx, comIdx) = KNormVal;
                                     gammaTilde(gIdx, dIdx, pIdx, comIdx) = gammaTildeVal;
                                     KLinks(gIdx, dIdx, pIdx, comIdx) = sum(sum(obj.KGlobal > 0));
-                                    LVals{gIdx, dIdx, pIdx, comIdx} = LVal;
-                                    KVals{gIdx, dIdx, pIdx, comIdx} = obj.KGlobal;
+                                    for t = 1:1:(tMax-1)
+                                        net.update();  % Update the entire network
+                                    end
+                                    JConVals(gIdx, dIdx, pIdx, comIdx) = net.cumMeanAbsConError;
+                                    JTraVals(gIdx, dIdx, pIdx, comIdx) = net.cumMeanAbsTraError;
+                                    netVals{gIdx, dIdx, pIdx, comIdx} = net;
                                 end
                             end
                         end
                     end
         
-                    % Generate and save contourf plots for the current gammaCostCoef and comCostLimit
-                    fig = figure;
-                    sgtitle(['Results for \gammaCostCoef = ', num2str(gammaCostCoef), ', comCostLimit = ', num2str(comCostLimit)]);
-        
-                    % Plot 1: L Norm as a contour plot
-                    subplot(4, 1, 1);
-                    contourf(pValRange, deltaCostCoefRange, squeeze(LNorm(gIdx, :, :, comIdx)), 'LineColor', 'none');
-                    set(gca, 'XScale', 'log', 'YScale', 'log');
-                    title('L Norm');
-                    xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
-        
-                    % Plot 2: K Norm as a contour plot
-                    subplot(4, 1, 2);
-                    contourf(pValRange, deltaCostCoefRange, squeeze(KNorm(gIdx, :, :, comIdx)), 'LineColor', 'none');
-                    set(gca, 'XScale', 'log', 'YScale', 'log');
-                    title('K Norm');
-                    xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
-        
-                    % Plot 3: Gamma Tilde as a contour plot
-                    subplot(4, 1, 3);
-                    contourf(pValRange, deltaCostCoefRange, squeeze(gammaTilde(gIdx, :, :, comIdx)), 'LineColor', 'none');
-                    set(gca, 'XScale', 'log', 'YScale', 'log');
-                    title('Gamma Tilde');
-                    xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+                    % try
 
-                    % Plot 3: Gamma Tilde as a contour plot
-                    subplot(4, 1, 4);
-                    contourf(pValRange, deltaCostCoefRange, squeeze(KLinks(gIdx, :, :, comIdx)), 'LineColor', 'none');
-                    set(gca, 'XScale', 'log', 'YScale', 'log');
-                    title('K Links');
-                    xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
-        
-                    % Save figure as .fig and .png
-                    
-                    % figFileName = sprintf([folderName,'gridSearchComplete_gCost_%d_comCost_%d.fig'], gIdx, comIdx);
-                    pngFileName = sprintf([folderName,'gridSearchComplete_gCost_%d_comCost_%d.png'], gIdx, comIdx);
-                    
-                    % savefig(fig, figFileName);  % Save as .fig file
-                    print(fig, pngFileName, '-dpng', '-r300');  % Save as high-res PNG (300 dpi)
-                    close(fig);  % Close the figure after saving
-                    
+                        % Generate and save contourf plots for the current gammaCostCoef and comCostLimit
+                        fig = figure;
+                        sgtitle(['Results for \gammaCostCoef = ', num2str(gammaCostCoef), ', comCostLimit = ', num2str(comCostLimit)]);
+            
+                        % Plot 1: L Norm as a contour plot
+                        subplot(3, 2, 1);
+                        contourf(pValRange, deltaCostCoefRange, squeeze(LNorm(gIdx, :, :, comIdx)), 'LineColor', 'none');
+                        set(gca, 'XScale', 'log', 'YScale', 'log');
+                        title('L Norm');
+                        xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+            
+                        % Plot 2: K Norm as a contour plot
+                        subplot(3, 2, 2);
+                        contourf(pValRange, deltaCostCoefRange, squeeze(KNorm(gIdx, :, :, comIdx)), 'LineColor', 'none');
+                        set(gca, 'XScale', 'log', 'YScale', 'log');
+                        title('K Norm');
+                        xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+            
+                        % Plot 3: Gamma Tilde as a contour plot
+                        subplot(3, 2, 3);
+                        contourf(pValRange, deltaCostCoefRange, squeeze(gammaTilde(gIdx, :, :, comIdx)), 'LineColor', 'none');
+                        set(gca, 'XScale', 'log', 'YScale', 'log');
+                        title('Gamma Tilde');
+                        xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+    
+                        % Plot 4: KLinks as a contour plot
+                        subplot(3, 2, 4);
+                        contourf(pValRange, deltaCostCoefRange, squeeze(KLinks(gIdx, :, :, comIdx)), 'LineColor', 'none');
+                        set(gca, 'XScale', 'log', 'YScale', 'log');
+                        title('K Links');
+                        xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+            
+                        % Plot 5: Consensus Error as a contour plot
+                        subplot(3, 2, 5);
+                        contourf(pValRange, deltaCostCoefRange, squeeze(JConVals(gIdx, :, :, comIdx)), 'LineColor', 'none');
+                        set(gca, 'XScale', 'log', 'YScale', 'log');
+                        title('Consensus Error');
+                        xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+    
+                        % Plot 6: Tracking Error as a contour plot
+                        subplot(3, 2, 6);
+                        contourf(pValRange, deltaCostCoefRange, squeeze(JTraVals(gIdx, :, :, comIdx)), 'LineColor', 'none');
+                        set(gca, 'XScale', 'log', 'YScale', 'log');
+                        title('Tracking Error');
+                        xlabel('pVal'); ylabel('\deltaCostCoef'); colorbar;
+                        % Save figure as .fig and .png
+                        
+                        % figFileName = sprintf([folderName,'gridSearchComplete_gCost_%d_comCost_%d.fig'], gIdx, comIdx);
+                        pngFileName = sprintf([folderName,'gridSearchComplete_gCost_%d_comCost_%d.png'], gIdx, comIdx);
+                        
+                        % savefig(fig, figFileName);  % Save as .fig file
+                        print(fig, pngFileName, '-dpng', '-r300');  % Save as high-res PNG (300 dpi)
+                        close(fig);  % Close the figure after saving
+                        
+                    % catch
+                    % 
+                    % end
+
                     % Save the results into a .mat file
-                    save([folderName,'gridSearchCompleteDesignResults.mat'], 'pValRange', 'deltaCostCoefRange', 'gammaCostCoefRange', 'comCostLimitRange', 'LNorm', 'KNorm', 'gammaTilde','KLinks','LVals','KVals');
+                    save([folderName,'gridSearchCompleteDesignResults.mat'], 'pValRange', 'deltaCostCoefRange', 'gammaCostCoefRange', 'comCostLimitRange', 'LNorm', 'KNorm', 'gammaTilde','KLinks','JConVals','JTraVals','netVals');
                 end
             end
         
@@ -675,7 +694,7 @@ classdef Network < handle
         end
 
 
-        function [bestPVal, bestDeltaCostCoef, bestGammaCostCoef, bestComCostLimit, bestKLinks] = findBestParameters(obj, matFileName, d1, d2, d3, d4)
+        function [bestPVal, bestDeltaCostCoef, bestGammaCostCoef, bestComCostLimit] = findBestParameters(obj, matFileName, d1, d2, d3, d4, d5, d6)
 
             % Load the data from the specified .mat file
             data = load(matFileName);
@@ -684,11 +703,15 @@ classdef Network < handle
             LNorm = data.LNorm;
             KNorm = data.KNorm;
             gammaTilde = data.gammaTilde;
+            KLinks = data.KLinks;
+            JCon = data.JConVals;
+            JTra = data.JTraVals;
+
             pValRange = data.pValRange;
             deltaCostCoefRange = data.deltaCostCoefRange;
             gammaCostCoefRange = data.gammaCostCoefRange;
             comCostLimitRange = data.comCostLimitRange;
-            KLinks = data.KLinks;
+            
         
             % Compute the minimum and maximum values for normalization
             minLNorm = min(LNorm(:), [], 'omitnan');
@@ -699,23 +722,35 @@ classdef Network < handle
             maxGammaTilde = max(gammaTilde(:), [], 'omitnan');
             minKLinks = min(KLinks(:), [], 'omitnan');
             maxKLinks = max(KLinks(:), [], 'omitnan');
+            minJCon = min(JCon(:), [], 'omitnan');
+            maxJCon = max(JCon(:), [], 'omitnan');
+            minJTra = min(JTra(:), [], 'omitnan');
+            maxJTra = max(JTra(:), [], 'omitnan');
+            
 
             % Compute normalization coefficients
             c1 = 1 / (maxLNorm - minLNorm);
             c2 = 1 / (maxKNorm - minKNorm);
             c3 = 1 / (maxGammaTilde - minGammaTilde);
             c4 = 1 / (maxKLinks - minKLinks);
+            c5 = 1 / (maxJCon - minJCon);
+            c6 = 1 / (maxJTra - minJTra);
         
             % Initialize variables to store the best values
             bestObjective = inf;
+            
             bestLNorm = NaN;
             bestKNorm = NaN;
             bestGammaTilde = NaN;
+            bestKLinks = NaN;
+            bestJCon = NaN;
+            bestJTra = NaN;
+
             bestPVal = NaN;
             bestDeltaCostCoef = NaN;
             bestGammaCostCoef = NaN;
             bestComCostLimit = NaN;
-            bestKLinks = NaN;
+            
         
             % Loop over all parameter combinations and compute the objective
             for gIdx = 1:length(gammaCostCoefRange)
@@ -727,17 +762,28 @@ classdef Network < handle
                             KNormVal = KNorm(gIdx, dIdx, pIdx, comIdx);
                             gammaTildeVal = gammaTilde(gIdx, dIdx, pIdx, comIdx);
                             KLinksVal = KLinks(gIdx, dIdx, pIdx, comIdx);
+                            JConVal = JCon(gIdx, dIdx, pIdx, comIdx);
+                            JTraVal = JTra(gIdx, dIdx, pIdx, comIdx);
 
                             % Check if the current combination is valid (not NaN)
-                            if ~isnan(LNormVal) && ~isnan(KNormVal) && ~isnan(gammaTildeVal) && ~isnan(KLinksVal)
+                            if ~isnan(LNormVal) && ~isnan(KNormVal) && ~isnan(gammaTildeVal) && ~isnan(KLinksVal) && ~isnan(JConVal) && ~isnan(JTraVal)
                                 % Normalize each value
+
+                                if any(isinf([c1,c2,c3,c4,c5,c6]))
+                                    disp('Error in c:');
+                                    disp([c1,c2,c3,c4,c5,c6]);
+                                    c4 = 1/maxKLinks;
+                                end
+
                                 normalizedLNorm = (LNormVal - minLNorm) * c1;
                                 normalizedKNorm = (KNormVal - minKNorm) * c2;
                                 normalizedGammaTilde = (gammaTildeVal - minGammaTilde) * c3;
                                 normalizedKLinks = (KLinksVal - minKLinks)*c4;
-        
+                                normalizedJCon = (JConVal - minJCon)*c5;
+                                normalizedJTra = (JTraVal - minJTra)*c6;
+
                                 % Compute the objective function using the new weights d1, d2, d3
-                                objective = d1 * normalizedLNorm + d2 * normalizedKNorm + d3 * normalizedGammaTilde + d4*normalizedKLinks;
+                                objective = d1 * normalizedLNorm + d2 * normalizedKNorm + d3 * normalizedGammaTilde + d4*normalizedKLinks + d5*normalizedJCon + d6*normalizedJTra;
         
                                 % Check if this is the best (minimum) objective found so far
                                 if objective < bestObjective
@@ -746,6 +792,8 @@ classdef Network < handle
                                     bestKNorm = KNormVal;
                                     bestGammaTilde = gammaTildeVal;
                                     bestKLinks = KLinksVal;
+                                    bestJCon = JConVal;
+                                    bestJTra = JTraVal;
 
                                     bestPVal = pValRange(pIdx);
                                     bestDeltaCostCoef = deltaCostCoefRange(dIdx);
@@ -759,16 +807,18 @@ classdef Network < handle
             end
         
             % Display the best parameter combination and the corresponding objective value
-            % disp('Best parameter combination found:');
-            % disp(['Minimum objective value: ', num2str(bestObjective)]);
-            % disp(['pVal: ', num2str(bestPVal)]);
-            % disp(['deltaCostCoef: ', num2str(bestDeltaCostCoef)]);
-            % disp(['gammaCostCoef: ', num2str(bestGammaCostCoef)]);
-            % disp(['comCostLimit: ', num2str(bestComCostLimit)]);
-            % disp(['LNorm: ', num2str(bestLNorm)]);
-            % disp(['KNorm: ', num2str(bestKNorm)]);
-            % disp(['gammaTilde: ', num2str(bestGammaTilde)]);
-            % disp(['KLinks: ', num2str(bestKLinks)]);
+            disp('Best parameter combination found:');
+            disp(['Minimum objective value: ', num2str(bestObjective)]);
+            disp(['pVal: ', num2str(bestPVal)]);
+            disp(['deltaCostCoef: ', num2str(bestDeltaCostCoef)]);
+            disp(['gammaCostCoef: ', num2str(bestGammaCostCoef)]);
+            disp(['comCostLimit: ', num2str(bestComCostLimit)]);
+            disp(['LNorm: ', num2str(bestLNorm)]);
+            disp(['KNorm: ', num2str(bestKNorm)]);
+            disp(['gammaTilde: ', num2str(bestGammaTilde)]);
+            disp(['KLinks: ', num2str(bestKLinks)]);
+            disp(['JCon: ', num2str(bestJCon)]);
+            disp(['JTra: ', num2str(bestJTra)]);
             
             % % Optionally, save the results to a .mat file
             % save('Results/bestParameters.mat', 'bestPVal', 'bestDeltaCostCoef', 'bestGammaCostCoef', 'bestComCostLimit', 'bestObjective', 'bestLNorm', 'bestKNorm', 'bestGammaTilde');

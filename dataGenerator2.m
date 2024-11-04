@@ -28,12 +28,13 @@ function J = dataGenerator2(d)
     % Perform the global design if local design succeeded
     if totalStatusLocal
         [statusGlobal, ~, ~, ~, ~] = net.globalControlDesign(gammaCostCoef, comCostLimit, isSoft);
+        % Compute the performance metric (mean consensus error)
+        net.setAdjointMatrixAndNeighborsAndControllers(); % Load graph, neighbors, and controllers from KVal
     else
         statusGlobal = 0;
     end
     
-    % Compute the performance metric (mean consensus error)
-    net.setAdjointMatrixAndNeighborsAndControllers(); % Load graph, neighbors, and controllers from KVal
+    
     
     if statusGlobal
         for t = 1:1:(tMax-1)

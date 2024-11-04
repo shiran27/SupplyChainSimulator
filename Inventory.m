@@ -70,7 +70,7 @@ classdef Inventory < handle
             obj.size = sizeI;
 
             % Initial State
-            obj.state = randi([obj.refLevel-500,obj.refLevel+500]);
+            obj.state = randi([obj.refLevel-100,obj.refLevel+100]);
 
             obj.cumMeanAbsTraError = 0;  % Start with 0 average
             obj.cumMeanAbsConError = 0;  % Start with 0 average

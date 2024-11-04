@@ -82,7 +82,7 @@ classdef Chain < handle
                     location(1,1) = location(1,1) + sizeS/2; 
                     location(2,1) = location(2,1) - sizeI/2; 
                     tranDelay = 1+randi([1,4]); %5
-                    phyLink = PhyLink(phyLinkId, location, tranDelay, obj.supplier, obj.inventories{k}); 
+                    phyLink = PhyLink(phyLinkId, chainId, location, tranDelay, obj.supplier, obj.inventories{k}); 
                     % Assign phyLink to the first inventory's phyLinkIn and supplier's phyLinkOut
                     obj.inventories{k}.phyLinkIn = phyLink;
                     obj.supplier.phyLinkOut = phyLink;
@@ -92,7 +92,7 @@ classdef Chain < handle
                     location(1,1) = location(1,1) + sizeI/2; 
                     location(2,1) = location(2,1) - sizeI/2; 
                     tranDelay = 1+randi([1,4]); %5
-                    phyLink = PhyLink(phyLinkId, location, tranDelay, obj.inventories{k-1}, obj.inventories{k});
+                    phyLink = PhyLink(phyLinkId, chainId, location, tranDelay, obj.inventories{k-1}, obj.inventories{k});
                     % Assign phyLink to the inventories' phyLinkIn and phyLinkOut
                     obj.inventories{k-1}.phyLinkOut = phyLink;  % Outgoing link for previous inventory
                     obj.inventories{k}.phyLinkIn = phyLink;     % Incoming link for current inventory
@@ -102,7 +102,7 @@ classdef Chain < handle
                     location(1,1) = location(1,1) + sizeI/2; 
                     location(2,1) = location(2,1) - sizeD/2; 
                     tranDelay = 1;
-                    phyLink = PhyLink(phyLinkId, location, tranDelay, obj.inventories{k-1}, obj.demander);
+                    phyLink = PhyLink(phyLinkId, chainId, location, tranDelay, obj.inventories{k-1}, obj.demander);
                     % Assign phyLink to the last inventory's phyLinkOut and demander's phyLinkIn
                     obj.inventories{k-1}.phyLinkOut = phyLink;
                     obj.demander.phyLinkIn = phyLink;
@@ -314,9 +314,12 @@ classdef Chain < handle
                 X_22Tilde = rhoTilde*eye(ni);
                 X_12 = 0.5*eye(ni);
             else
-                C = obj.CCurl;
-                X_22Tilde = rhoTilde*eye(n);
-                X_12 = 0.5*eye(ni,n); 
+                C = eye(ni);
+                X_22Tilde = rhoTilde*eye(ni);
+                X_12 = 0.5*eye(ni);
+                % C = obj.CCurl;
+                % X_22Tilde = rhoTilde*eye(n);
+                % X_12 = 0.5*eye(ni,n); 
             end
             
             A = obj.ACurl;
@@ -340,19 +343,25 @@ classdef Chain < handle
             constraintMats{end+1} = P;
 
             % To check passivity
+            W = [X_22Tilde, O_ni_ni, C*P, O_ni_ni; 
+                 O_ni_ni', P, A*P + B*K, I_ni;
+                 P*C', P*A'+K'*B', P, P'*C'*X_21;
+                 O_ni_ni', I_ni, X_12*C*P, X_11];
+
             
             if ~isnan(pVal)
+                
+            else
                 W = [X_22Tilde, O_ni_ni, C*P, O_ni_ni; 
                      O_ni_ni', P, A*P + B*K, I_ni;
                      P*C', P*A'+K'*B', P, P'*C'*X_21;
                      O_ni_ni', I_ni, X_12*C*P, X_11];
-            else
                 % W = [X_22Tilde, O_n_ni, C*P, O_n_ni; 
                 %  O_n_ni', P, A*P + B*K, I_ni;
                 %  P*C', P*A'+K'*B', P, P'*C'*X_21;
                 %  O_n_ni', I_ni, X_12*C*P, X_11];
-                W = [P, A*P + B*K;
-                 P*A'+K'*B', P];
+                % W = [P, A*P + B*K;
+                %  P*A'+K'*B', P];
             end
             tagName = ['W_',num2str(i)];
             constraintTags{end+1} = tagName;
@@ -379,15 +388,15 @@ classdef Chain < handle
                       pVal*nu, 0, 0.5*pVal*rhoTilde, gammaTilde];
                 tagName = ['Global_Helper_',num2str(i)];
                 constraintTags{end+1} = tagName;
-                con5 = tag(W0 >= delta*eye(size(W0)), tagName);
+                con5 = tag(W0 >= epsilon*eye(size(W0)), tagName);
                 constraintMats{end+1} = W0;
             
 
                 % To enforce delta >= 0 
-                tagName = ['delta_',num2str(i)];
-                constraintTags{end+1} = tagName;
-                con6 = tag(delta >= epsilon, tagName);
-                constraintMats{end+1} = delta;
+                % tagName = ['delta_',num2str(i)];
+                % constraintTags{end+1} = tagName;
+                % con6 = tag(delta >= epsilon, tagName);
+                % constraintMats{end+1} = delta;
             end
 
 
@@ -405,11 +414,14 @@ classdef Chain < handle
 
 
             if ~isnan(pVal)
-                constraints = [con1, con2, con3, con4, con5, con6, con7, con8];
-                costFunction =  1*gammaTilde - deltaCostCoef*delta + 0*trace(P) + 0*norm(K);
+                constraints = [con1, con2, con3, con4, con5, con7, con8];
+                % costFunction = 1*gammaTilde + deltaCostCoef*delta + 1*trace(P) + 0*norm(K);
+                % costFunction = 1*gammaTilde + 1*trace(P);
+                costFunction = 1*gammaTilde + deltaCostCoef*trace(P) + 0*norm(K);
             else
-                constraints = [con1, con2];
-                costFunction = 0*trace(P);
+                constraints = [con1, con2, con3, con4, con7, con8];
+                % constraints = [con1, con2];
+                costFunction = -1*nu + 1*rhoTilde + deltaCostCoef*trace(P);
             end
 
             solverOptions = sdpsettings('solver', 'mosek', 'verbose', 0, 'debug', 0);
