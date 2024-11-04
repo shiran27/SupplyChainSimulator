@@ -27,7 +27,7 @@ classdef Demand < handle
             obj.size = sizeD;
 
             % Loading demand characteristics
-            obj.dailyMeans = 100 + 20*randi([1,numOfChains],7,1) + 20*demId;
+            obj.dailyMeans = 100 + 2*randi([1,10*numOfChains],7,1) + 20*demId;
             obj.demRateMean = mean(obj.dailyMeans);        % Mean demand rate
             obj.demRateStd = 0.2*obj.demRateMean;           % Variance in demand
             

@@ -414,7 +414,8 @@ classdef Chain < handle
             else
                 constraints = [con1, con2, con3, con4, con7, con8];
                 % constraints = [con1, con2];
-                costFunction = -1*nu + 1*rhoTilde + deltaCostCoef*trace(P);
+                % costFunction = -1*nu + 1*rhoTilde + deltaCostCoef*trace(P);
+                costFunction = -1*nu + 1*rhoTilde + 0.01*trace(P);
             end
 
             solverOptions = sdpsettings('solver', 'mosek', 'verbose', 0, 'debug', 0);

@@ -379,7 +379,7 @@ classdef Network < handle
 
             if ~isSoft
                 % Total Cost Function
-                costFunction = 1*costFun0 + gammaCostCoef*(gammaTilde/gammaBar) + 1*trace(P);
+                costFunction = 1*costFun0 + gammaCostCoef*(gammaTilde/gammaBar) + 1*trace(P) + 0;
             else
                 % Total Cost Function
                 costFunction = 1*costFun0 + gammaCostCoef*(gammaTilde/gammaBar) + 1*trace(P); % soft %%% Play with this
@@ -955,14 +955,14 @@ classdef Network < handle
 
             for chainIdx = 1:N
                 inventory = obj.chains{chainIdx}.inventories{1};
-                text(inventory.location(1) - 30, inventory.location(2), ...
-                            sprintf('Chain %d', chainIdx), 'HorizontalAlignment', 'center','FontSize',8);
+                text(inventory.location(1) - 25, inventory.location(2), ...
+                            sprintf('i=%d', chainIdx), 'HorizontalAlignment', 'center','FontSize',8);
             end
 
             for invenIdx = 1:n
                 inventory = obj.chains{1}.inventories{invenIdx};
-                    text(inventory.location(1), inventory.location(2) - 15, ...
-                        sprintf('Inventory %d', invenIdx), 'HorizontalAlignment', 'center','FontSize',8);
+                    text(inventory.location(1), inventory.location(2) - 25, ...
+                        sprintf('k=%d', invenIdx), 'HorizontalAlignment', 'center','FontSize',8);
             end
         
             % Parameters for drawing arcs
@@ -1002,7 +1002,7 @@ classdef Network < handle
                                         curveY = (1 - t).^2 * srcLocation(2) + 2 * (1 - t) .* t * arcMidPoint(2) + t.^2 * destLocation(2);
         
                                         % Plot the arc
-                                        plot(curveX, curveY, 'r', 'LineWidth', 1.5);
+                                        plot(curveX, curveY, 'r', 'LineWidth', 1);
 
                                         % Find the midpoint index for the arrow placement
                                         midIdx = floor(length(t) / 2);
@@ -1024,19 +1024,27 @@ classdef Network < handle
                                         % For adjacent inventories, draw a straight arrow
                                         quiver(srcLocation(1), srcLocation(2), ...
                                                destLocation(1) - srcLocation(1), destLocation(2) - srcLocation(2), ...
-                                               'MaxHeadSize', 0.2, 'Color', 'r', 'LineWidth', 1.5);
+                                               'MaxHeadSize', 0.2, 'Color', 'r', 'LineWidth', 1);
                                     end
                                 else
                                     % Between different chains, draw a straight arrow
                                     quiver(srcLocation(1), srcLocation(2), ...
                                            destLocation(1) - srcLocation(1), destLocation(2) - srcLocation(2), ...
-                                           'MaxHeadSize', 0.2, 'Color', 'r', 'LineWidth', 1.5);
+                                           'MaxHeadSize', 0.2, 'Color', 'r', 'LineWidth', 1);
                                 end
                             end
                         end
                     end
                 end
             end
+
+            sizeVal = 35;
+            xLim0 = obj.chains{1}.inventories{1}.location(1) - sizeVal/2;
+            xLim = obj.chains{end}.inventories{end}.location(1) + sizeVal/2;
+            yLim0 = obj.chains{1}.inventories{1}.location(2) - sizeVal/2;  % Lower y limit to include the text within bounds
+            yLim = obj.chains{end}.inventories{end}.location(2) + sizeVal/2;
+
+            axis([xLim0,xLim,yLim0,yLim])
         end
 
         function plotNetworkPerformance(obj)
@@ -1074,7 +1082,7 @@ classdef Network < handle
             
             % Update plot title, labels, and legend
             % title(sprintf('Performance Metrics at Time Step %d', t));
-            xlabel('Time Step');
+            xlabel('Time Step (Hours)');
             ylabel('Mean Percentage Absolute Error');
             legend('Location', 'northeast');
             
@@ -1085,15 +1093,32 @@ classdef Network < handle
             N = obj.numOfChains;                 % Number of chains
             hArray = [];
             for i = 1:N  % Loop over all chains
-                h = plot(1:L, obj.chains{i}.demander.demandHistory, '.-', 'LineWidth', 1, 'DisplayName', ['Demand ',num2str(i)]);
+                h = plot(1:L, obj.chains{i}.demander.demandHistory, 'DisplayName', ['Demand ',num2str(i)]);
                 hArray = [hArray, h];
                 color1 = get(h, 'Color');
                 plot(1:L, mean(obj.chains{i}.demander.dailyMeans)*ones(1,L), '--', 'Color', color1, 'LineWidth', 0.5)
             end
-            xlabel('Time Step');
+            xlabel('Time Step (Hours)');
             ylabel('Demand Value');
-            legend(hArray, 'Location', 'northeast');
+            legend(hArray, 'Location', 'southwest');
         end
+
+
+        function plotMeanDemandProfiles(obj)
+            N = obj.numOfChains;
+            L = length(obj.chains{1}.demander.dailyMeans);
+            hArray = [];
+            for i = 1:N  % Loop over all chains
+                h = stairs(1:L, obj.chains{i}.demander.dailyMeans, 'DisplayName', ['Demand ',num2str(i)]);
+                hArray = [hArray, h];
+                color1 = get(h, 'Color');
+                plot(1:L, mean(obj.chains{i}.demander.dailyMeans)*ones(1,L), '--', 'Color', color1, 'LineWidth', 0.5)
+            end
+            xlabel('Day of the Week');
+            ylabel('Mean Demand Value');
+            legend(hArray, 'Location', 'southwest');
+        end
+
 
         function runSimulationAndSaveVideos(obj, fileTag, tMax)
             % Define video file names using the provided fileTag
@@ -1176,7 +1201,7 @@ classdef Network < handle
                 
                 % Update plot title, labels, and legend
                 % title(sprintf('Performance Metrics at Time Step %d', t));
-                xlabel('Time Step');
+                xlabel('Time Step (Hours)');
                 ylabel('Mean Percentage Absolute Error');
                 legend('Location', 'northeast');
                 
@@ -1282,7 +1307,7 @@ classdef Network < handle
             plot(1:tMax, consensusErrorHistory, 'r.-', 'LineWidth', 1, 'DisplayName', 'Consensus Error');
             plot(1:tMax, trackingErrorHistory, 'b.-', 'LineWidth', 1, 'DisplayName', 'Tracking Error');
             % title(sprintf('Final Performance Metrics at Time Step %d', tMax));
-            xlabel('Time Step');
+            xlabel('Time Step (Hours)');
             ylabel('Mean Percentage Absolute Error');
             legend('Location', 'northeast');
             print(figPerformance, finalPerformanceFileName, '-dpng', '-r300');  % Save final performance state as high-res PNG
@@ -1295,7 +1320,7 @@ classdef Network < handle
             for i = 1:N
                 plot(1:tMax, obj.chains{i}.demander.demandHistory, '.-', 'LineWidth', 1, 'DisplayName', ['Demand ',num2str(i)]);
             end
-            xlabel('Time Step');
+            xlabel('Time Step (Hours)');
             ylabel('Demand Value');
             legend('Location', 'northeast');
             print(figDemand, finalDemandFileName, '-dpng', '-r300');  % Save final performance state as high-res PNG
@@ -1369,18 +1394,96 @@ classdef Network < handle
                 obj.chains{i}.draw();
             end
             
-            % Display the global cumulative average error on the plot
-            timeText = ['Time Steps: ', num2str(currentTime), '; Days: ', num2str(obj.numDays),'; Hours: ', num2str(mod(currentTime,24)), '.'];
-            text(0, 40, timeText, 'FontSize', 8, 'Color', 'k');
+            sizeVal = 35;
             
-            % Percentage Cumulative Mean Absolute Error (Tracking) =
-            % Tracking PCMAE
-            errorText = ['Tracking PCMAE: ', num2str(obj.cumMeanAbsTraError*(100/500),4),'%'];
-            text(0, 20, errorText, 'FontSize', 8, 'Color', 'b');  % Display the global average error below the time
+            % Set axis limits based on supplier and demander positions
+            xLim0 = obj.chains{1}.supplier.location(1) - sizeVal/2 - 10;
+            xLim = obj.chains{end}.demander.location(1) + sizeVal/2 + 10;
+            yLim0 = obj.chains{1}.supplier.location(2) - sizeVal/2 - 10;  % Lower y limit to include the text within bounds
+            yLim = obj.chains{end}.demander.location(2) + sizeVal/2 + 10;
+        
+             % Create a single text line for time, tracking error, and consensus error
+            bottomText1 = sprintf('Time Steps: %d; Days: %d; Hours: %d', ...
+                                 currentTime, obj.numDays, mod(currentTime, 24));
+            bottomText2 = sprintf('Consensus PCMAE: %.2f%% || Tracking PCMAE: %.2f%%', ...
+                                 obj.cumMeanAbsConError * (100/500), obj.cumMeanAbsTraError * (100/500));
+                             
+            % Place the combined text below the network
+            text(xLim0 + 5, yLim0 - 20, bottomText1, 'FontSize', 8, 'Color', 'k', 'HorizontalAlignment', 'left');
+            text(xLim0 + 5, yLim0 - 40, bottomText2, 'FontSize', 8, 'Color', 'r', 'HorizontalAlignment', 'left');
 
-            errorText = ['Consensus PCMAE: ', num2str(obj.cumMeanAbsConError*(100/500),4),'%'];
-            text(0, 0, errorText, 'FontSize', 8, 'Color', 'r');  % Display the global average error below the time
+            % Set tight axis limits to avoid extra space
+            axis([xLim0, xLim, yLim0-40, yLim]);
+
+            % % Display the global cumulative average error on the plot with adjusted positions
+            % timeText = ['Time Steps: ', num2str(currentTime), '; Days: ', num2str(obj.numDays), '; Hours: ', num2str(mod(currentTime,24)), '.'];
+            % text(xLim0 + 10, yLim0 - 30, timeText, 'FontSize', 8, 'Color', 'k');  % Move closer to the plot
+            % 
+            % % Display tracking and consensus error percentages
+            % errorTextTracking = ['Tracking PCMAE: ', num2str(obj.cumMeanAbsTraError * (100/500), 4), '%'];
+            % text(xLim0 + 10, yLim0 - 50, errorTextTracking, 'FontSize', 8, 'Color', 'b');  % Adjust position within bounds
+            % 
+            % errorTextConsensus = ['Consensus PCMAE: ', num2str(obj.cumMeanAbsConError * (100/500), 4), '%'];
+            % text(xLim0 + 10, yLim0 - 70, errorTextConsensus, 'FontSize', 8, 'Color', 'r');  % Adjust position within bounds
+        
+            
         end
+
+
+        function saveFormattedFigure(obj, figHandle, folderPath, fileName, figWidth, figHeight, fontSize)
+            % Ensure the target folder exists
+            if ~exist(folderPath, 'dir')
+                mkdir(folderPath);
+            end
+            
+            % Adjust the figure size
+            % set(figHandle, 'Units', 'inches');
+            % set(figHandle, 'Position', [1, 1, figWidth, figHeight]);
+        
+            ax = gca;
+
+            % Calculate the required figure height to maintain aspect ratio with axis equal
+            % if figHeight == 0
+            xRange = diff(ax.XLim);  % Width of the plotted content
+            yRange = diff(ax.YLim);  % Height of the plotted content
+            aspectRatio = yRange / xRange;
+            figHeight = max(figWidth * aspectRatio + 0.1, figHeight);
+            % end
+            
+            % Set the figure size based on desired width and calculated height
+            figHandle = gcf;
+            set(figHandle, 'Units', 'inches', 'Position', [1, 1, figWidth, figHeight]);
+            set(gcf, 'PaperPositionMode', 'auto');
+
+            % Set font size for all text in the figure
+            set(findall(figHandle, '-property', 'FontSize'), 'FontSize', fontSize);
+        
+
+            % Adjust layout to remove whitespace
+            % outerpos = ax.OuterPosition;
+            % ti = ax.TightInset;
+            % left = outerpos(1) + ti(1);
+            % bottom = outerpos(2) + ti(2) + 0.1;
+            % axWidth = outerpos(3) - ti(1) - ti(3);
+            % axHeight = outerpos(4) - ti(2) - ti(4) - 0.1;
+            % ax.Position = [left bottom axWidth axHeight];
+            
+            % Remove empty spaces
+            set(figHandle, 'PaperPositionMode', 'auto');
+            set(gca, 'LooseInset', max(get(gca, 'TightInset'), 0.02));
+        
+            % Save in .png format with high resolution
+            pngFilePath = fullfile(folderPath, [fileName, '.png']);
+            print(figHandle, pngFilePath, '-dpng', '-r300');  % 300 DPI for high-res output
+        
+            % Save as .fig for further editing in MATLAB
+            figFilePath = fullfile(folderPath, [fileName, '.fig']);
+            savefig(figHandle, figFilePath);
+        
+            % Display save message
+            disp(['Figure saved as ', pngFilePath, ' and ', figFilePath]);
+        end
+
 
     end
 end
