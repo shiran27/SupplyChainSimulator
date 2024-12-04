@@ -58,7 +58,7 @@ classdef Inventory < handle
             % Load inventory characteristics
             obj.refLevel = 500;
             obj.maxLevel = 1000;
-            obj.minLevel = 10;
+            obj.minLevel = 0;
 
             obj.perishRate = 0.1;
             obj.wasteRateMean = 10 + 2*randi([1,5]) + 2*chainId;
@@ -70,7 +70,7 @@ classdef Inventory < handle
             obj.size = sizeI;
 
             % Initial State
-            obj.state = randi([obj.refLevel-100,obj.refLevel+100]);
+            obj.state = randi([obj.refLevel-400,obj.refLevel+400]);
 
             obj.cumMeanAbsTraError = 0;  % Start with 0 average
             obj.cumMeanAbsConError = 0;  % Start with 0 average
@@ -128,7 +128,7 @@ classdef Inventory < handle
 
             % Ensure the requested order is non-negative and reasonable
             totalOrder = obj.uOverBar + 1*obj.uTilde + 1*obj.uTildeTilde;
-            totalOrderFiltered = max(min(round(totalOrder), 1*obj.maxLevel),0);
+            totalOrderFiltered = max(min(round(totalOrder), 1.25*obj.uOverBar), 0.75*obj.uOverBar);
             obj.orderIn = totalOrderFiltered;
 
             % Log order history
@@ -137,13 +137,19 @@ classdef Inventory < handle
         end
 
 
-        function updateState(obj)
+        function updateState(obj,t)
             % Update the state based on incoming products from the last inventory
             obj.productIn = obj.phyLinkIn.delayBuffer(end);  % Receive products after delay
             
             % Product Waste
             wasteValue = obj.wasteRateMean + obj.wasteRateStd * randn();
             % Smoothing factor (between 0 and 1, where 1 means no smoothing)
+
+            % dayNum = floor(t/24);
+            % if dayNum >= 25
+            %     wasteValue = obj.wasteRateMean + 0.25 * obj.wasteRateStd * randn();
+            % end
+
             alpha = 0.5; 
             % Apply exponential moving average to smooth waste
             wasteSmooth = alpha * wasteValue + (1 - alpha) * obj.waste;
@@ -179,15 +185,15 @@ classdef Inventory < handle
             line([obj.location(1) - obj.size/3, obj.location(1) + obj.size/3], [middleY, middleY], 'Color', 'k', 'LineWidth', 1);  % Horizontal line
         
             del = 2;
-            % Plot tracking error as a vertical line (blue) from the middle line
-            trackErrHeight = obj.trackingError/5;  % Scale error to fit inside the box
-            if trackErrHeight > obj.size/2 - del
-                trackErrHeight = obj.size/2 - del;
-            elseif trackErrHeight < -obj.size/2 + del
-                trackErrHeight = -obj.size/2 + del;
-            end
-            line([obj.location(1) - obj.size/6, obj.location(1) - obj.size/6], ...
-                 [middleY, middleY + trackErrHeight], 'Color', 'b', 'LineWidth', 1.5);  % Blue for tracking error
+            % % Plot tracking error as a vertical line (blue) from the middle line
+            % trackErrHeight = obj.trackingError/5;  % Scale error to fit inside the box
+            % if trackErrHeight > obj.size/2 - del
+            %     trackErrHeight = obj.size/2 - del;
+            % elseif trackErrHeight < -obj.size/2 + del
+            %     trackErrHeight = -obj.size/2 + del;
+            % end
+            % line([obj.location(1) - obj.size/6, obj.location(1) - obj.size/6], ...
+            %      [middleY, middleY + trackErrHeight], 'Color', 'b', 'LineWidth', 1.5);  % Blue for tracking error
             
             % Plot consensus error as a vertical line (green) from the middle line
             conErrHeight = obj.consensusError/5;  % Scale error to fit inside the box
@@ -196,8 +202,10 @@ classdef Inventory < handle
             elseif conErrHeight < -obj.size/2 + del
                 conErrHeight = -obj.size/2 + del;
             end
-            line([obj.location(1) + obj.size/6, obj.location(1) + obj.size/6], ...
-                 [middleY, middleY + conErrHeight], 'Color', 'r', 'LineWidth', 1.5);  % Green for consensus error
+            % line([obj.location(1) + obj.size/6, obj.location(1) + obj.size/6], ...
+                 % [middleY, middleY + conErrHeight], 'Color', 'r', 'LineWidth', 1.5);  % Green for consensus error
+            line([obj.location(1), obj.location(1)], ...
+                 [middleY, middleY + conErrHeight], 'Color', 'r', 'LineWidth', 4);  % Green for consensus error
         
 
             % Display the product count as a number on top of the inventory box

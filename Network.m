@@ -28,6 +28,8 @@ classdef Network < handle
 
         consensusErrorHistory
         trackingErrorHistory
+        cumMeanAbsConErrorHistory
+        cumMeanAbsTraErrorHistory
     end
 
     methods
@@ -78,7 +80,7 @@ classdef Network < handle
             if mod(obj.numUpdates, 24) == 0 % new day
                 dayNum = floor(obj.numUpdates/24);
                 dayOfWeek = mod(dayNum,7) + 1;
-                obj.updateDemanders(dayOfWeek); % update the demander behaviors
+                obj.updateDemanders(dayOfWeek, dayNum); % update the demander behaviors
                 
                 obj.numDays = dayNum;
                 obj.numWeeks = floor(dayNum/7);
@@ -128,15 +130,29 @@ classdef Network < handle
             
         end
 
-        function updateDemanders(obj,dayOfWeek)
+        function updateDemanders(obj, dayOfWeek, dayNum)
             for i = 1:1:obj.numOfChains
                 newMean = obj.chains{i}.demander.dailyMeans(dayOfWeek);    % Mean demand rate
                 newVariance = 0.2*newMean;                                              % Variance in demand
                 obj.chains{i}.demander.demRateMean = newMean;
                 obj.chains{i}.demander.demRateStd = newVariance;
+                
+                % if dayNum >= 25
+                %     obj.chains{i}.demander.demRateMean = mean(obj.chains{i}.demander.dailyMeans);
+                %     obj.chains{i}.demander.demRateStd = 0.05*mean(obj.chains{i}.demander.dailyMeans);
+                % end
+
                 % obj.chains{i}.computeChainMatrices();
             end
             % obj.computeNetworkMatrices();
+        end
+
+        function randomizeInitialState(obj)
+
+            for i = 1:1:obj.numOfChains
+                obj.chains{i}.randomizeInitialState();
+            end
+
         end
         
         function computeErrors(obj)
@@ -192,6 +208,23 @@ classdef Network < handle
             end            
         end
 
+
+        function setInitialErrors(obj)
+            % In this function, lets set the initial inventory errors 
+            % At t = 1, just temporarily, just for display purposes. 
+            % We need obj.consensusError and obj.trackingError at each
+            obj.computeConsensusError();
+            % Load tracking errors at the inventories
+            for i = 1:1:obj.numOfChains
+                for k = 1:1:obj.numOfInventories
+                    x_ik = obj.chains{i}.inventories{k}.state;
+                    xBar_ik = obj.chains{i}.inventories{k}.refLevel;
+                    obj.chains{i}.inventories{k}.trackingError = x_ik - xBar_ik;
+                end
+            end
+        
+        end
+        
         function computeNetworkMatrices(obj)
             
             N = obj.numOfChains;
@@ -452,6 +485,82 @@ classdef Network < handle
         end
 
 
+        function [statusGlobal] = globalConsensusControlDesign(obj)
+
+            ACurl = [];
+            CCurl = [];
+            for i = 1:1:obj.numOfChains
+                A = obj.chains{i}.ACurl;
+                C = obj.chains{i}.CCurl;
+                ACurl = blkdiag(ACurl,A);
+                CCurl = blkdiag(CCurl,C);
+            end
+            A = ACurl;
+            B = obj.BCurl;
+            C = CCurl;
+            
+            % Now we need to find K such that (A+BKC) is stable
+            epsilon = 1*10^(-6);
+            
+            dimX = size(A,1);
+            dimY = size(C,1);
+            dimU = size(B,2);
+            
+            P = sdpvar(dimX, dimX, 'symmetric');
+            Q = sdpvar(dimX, dimY, 'full');
+            
+            %% Constraints 
+            constraints = [];
+            constraintTags = {}; % Cell array to hold tags
+            constraintMats = {}; % Cell array to hold matrices
+            
+            % 0 <= gammaTilde <= gammaBar
+            tagName = ['P'];
+            constraintTags{end+1} = tagName;
+            con1 = tag(P >= epsilon*eye(size(P)), tagName);
+            constraintMats{end+1} = P;
+            
+            tagName = ['W'];
+            constraintTags{end+1} = tagName;
+            W = [P, P*A + Q*C; A'*P + C'*Q', P];
+            con2 = tag(W >= epsilon*eye(size(W)), tagName);
+            constraintMats{end+1} = W;
+            
+            constraints = [constraints, con1, con2];
+            
+            % Consensus constraint
+            tagName = ['K_Consensus'];
+            constraintTags{end+1} = tagName;
+            con3 = tag(Q*ones(dimY,1)==zeros(dimX,1), tagName);      % Graph structure : hard constraint
+            constraintMats{end+1} = Q*ones(dimY,1);
+            
+            constraints = [constraints, con3];
+            
+            costFunction = 1*trace(P);
+            
+            %% Solve the LMI problem
+            solverOptions = sdpsettings('solver', 'mosek', 'verbose', 0, 'debug', 0);
+            sol = optimize(constraints,costFunction,solverOptions);
+            
+            statusGlobal = sol.problem == 0;
+            
+            PVal = value(P);
+            QVal = value(Q);
+            BK = PVal\QVal;
+            KVal = pinv(B)*BK;
+
+
+            obj.KGlobal = KVal;
+            for i = 1:1:obj.numOfChains
+                A = obj.chains{i}.ACurl;
+                C = obj.chains{i}.CCurl;
+                ACurl = blkdiag(ACurl,A);
+                CCurl = blkdiag(CCurl,C);
+            end
+
+        
+        end
+
         function gridSearchPassivityIndices(obj)
             % GRIDSEARCHPASSIVITYINDICES - Performs a grid search over nu, rho, and gammaCost in logarithmic scales.
             %
@@ -555,10 +664,17 @@ classdef Network < handle
             % The ranges are selected in logarithmic scales.
         
             % Define the ranges in the log domain
-            pValRange = logspace(-2, 1, 7);  % pVal values in logarithmic scale
-            deltaCostCoefRange = logspace(-3, 6, 4);  % deltaCostCoef range
-            gammaCostCoefRange = logspace(-2, 4, 4); % gammaCostCoef range
-            comCostLimitRange = logspace(-4, -1, 4); % comCostLimit range
+            pValRange = logspace(-3, 1, 13);  % pVal values in logarithmic scale
+            deltaCostCoefRange = logspace(2, 4, 5);  % deltaCostCoef range
+            gammaCostCoefRange = logspace(1, 3, 5); % gammaCostCoef range
+            comCostLimitRange = logspace(-3, -1, 5); % comCostLimit range
+
+             % [0.0316, 1000, 100, 0.01]
+
+            % pValRange = logspace(-2, 1, 7);  % pVal values in logarithmic scale
+            % deltaCostCoefRange = logspace(-3, 6, 4);  % deltaCostCoef range
+            % gammaCostCoefRange = logspace(-2, 4, 4); % gammaCostCoef range
+            % comCostLimitRange = logspace(-4, -1, 4); % comCostLimit range
         
             % Preallocate result vectors
             numP = length(pValRange);
@@ -955,14 +1071,14 @@ classdef Network < handle
 
             for chainIdx = 1:N
                 inventory = obj.chains{chainIdx}.inventories{1};
-                text(inventory.location(1) - 25, inventory.location(2), ...
-                            sprintf('i=%d', chainIdx), 'HorizontalAlignment', 'center','FontSize',8);
+                text(inventory.location(1) - 26, inventory.location(2), ...
+                            sprintf('Ch.%d', chainIdx), 'HorizontalAlignment', 'center','FontSize',8);
             end
 
             for invenIdx = 1:n
                 inventory = obj.chains{1}.inventories{invenIdx};
-                    text(inventory.location(1), inventory.location(2) - 25, ...
-                        sprintf('k=%d', invenIdx), 'HorizontalAlignment', 'center','FontSize',8);
+                    text(inventory.location(1), inventory.location(2) - 15, ...
+                        sprintf('Inv.%d', invenIdx), 'HorizontalAlignment', 'center','FontSize',8);
             end
         
             % Parameters for drawing arcs
@@ -1048,6 +1164,24 @@ classdef Network < handle
         end
 
         function plotNetworkPerformance(obj)
+            
+            L = length(obj.consensusErrorHistory);
+
+            % Plot the accumulated error profiles
+            plot(1:L, obj.consensusErrorHistory, 'r-', 'LineWidth', 1, 'DisplayName', 'Consensus Error');
+            plot(1:L, obj.trackingErrorHistory, 'b-', 'LineWidth', 1, 'DisplayName', 'Tracking Error');
+            plot(1:L, obj.cumMeanAbsConErrorHistory, 'r--', 'LineWidth', 1, 'DisplayName', 'Cum. Consensus Error');
+            plot(1:L, obj.cumMeanAbsTraErrorHistory, 'b--', 'LineWidth', 1, 'DisplayName', 'Cum. Tracking Error');
+            
+            % Update plot title, labels, and legend
+            % title(sprintf('Performance Metrics at Time Step %d', t));
+            xlabel('Time Step (Hours)');
+            ylabel('Mean Percentage Absolute Error');
+            legend('Location', 'northeast');
+            
+        end
+
+        function computeErrorHistory(obj)
 
             n = obj.chains{1}.numOfInventories;  % Number of inventories per chain
             N = obj.numOfChains;                 % Number of chains
@@ -1075,17 +1209,20 @@ classdef Network < handle
 
             obj.consensusErrorHistory = consensusErrorHistory;
             obj.trackingErrorHistory = trackingErrorHistory;
+
+            T = length(consensusErrorHistory);
+            cumCon = [];
+            cumTra = [];
+            for t = 1:1:T
+                cumCon_t = mean(consensusErrorHistory(1:t));
+                cumTra_t = mean(trackingErrorHistory(1:t));
+                cumCon = [cumCon, cumCon_t];
+                cumTra = [cumTra, cumTra_t];
+            end
             
-            % Plot the accumulated error profiles
-            plot(1:L, consensusErrorHistory, 'r.-', 'LineWidth', 1, 'DisplayName', 'Consensus Error');
-            plot(1:L, trackingErrorHistory, 'b.-', 'LineWidth', 1, 'DisplayName', 'Tracking Error');
-            
-            % Update plot title, labels, and legend
-            % title(sprintf('Performance Metrics at Time Step %d', t));
-            xlabel('Time Step (Hours)');
-            ylabel('Mean Percentage Absolute Error');
-            legend('Location', 'northeast');
-            
+            obj.cumMeanAbsConErrorHistory = cumCon;
+            obj.cumMeanAbsTraErrorHistory = cumTra;
+
         end
 
         function plotDemandProfiles(obj)
@@ -1093,7 +1230,7 @@ classdef Network < handle
             N = obj.numOfChains;                 % Number of chains
             hArray = [];
             for i = 1:N  % Loop over all chains
-                h = plot(1:L, obj.chains{i}.demander.demandHistory, 'DisplayName', ['Demand ',num2str(i)]);
+                h = plot(1:L, obj.chains{i}.demander.demandHistory, 'LineWidth', 0.8, 'DisplayName', ['Demand ',num2str(i)]);
                 hArray = [hArray, h];
                 color1 = get(h, 'Color');
                 plot(1:L, mean(obj.chains{i}.demander.dailyMeans)*ones(1,L), '--', 'Color', color1, 'LineWidth', 0.5)
@@ -1109,10 +1246,12 @@ classdef Network < handle
             L = length(obj.chains{1}.demander.dailyMeans);
             hArray = [];
             for i = 1:N  % Loop over all chains
-                h = stairs(1:L, obj.chains{i}.demander.dailyMeans, 'DisplayName', ['Demand ',num2str(i)]);
+                means0 = obj.chains{i}.demander.dailyMeans;
+                means = [means0; means0(1)];
+                h = stairs(0:L, means, 'LineWidth', 0.8, 'DisplayName', ['Demand ',num2str(i)]);
                 hArray = [hArray, h];
                 color1 = get(h, 'Color');
-                plot(1:L, mean(obj.chains{i}.demander.dailyMeans)*ones(1,L), '--', 'Color', color1, 'LineWidth', 0.5)
+                plot(1:L, mean(means0)*ones(1,L), '--', 'Color', color1, 'LineWidth', 0.5)
             end
             xlabel('Day of the Week');
             ylabel('Mean Demand Value');
@@ -1359,7 +1498,7 @@ classdef Network < handle
             fprintf('maxLevel: %f\n', obj.chains{1}.inventories{1}.maxLevel);
             fprintf('minLevel: %f\n', obj.chains{1}.inventories{1}.minLevel);
             fprintf('perishRate: %f\n', obj.chains{1}.inventories{1}.perishRate);
-            disp('wasteRateMean Obtained using: 5 + randi([1,5])')
+            disp('wasteRateMean Obtained using: 10 + 2*randi([1,5]) + 2*chainId')
             disp('wasteRateStd Obtained using: 0.2*mean')
             for i = 1:1:obj.numOfChains
                 for k = 1:1:obj.numOfInventories
@@ -1373,7 +1512,7 @@ classdef Network < handle
             % Physical Link Class - Access the first physical link in the first chain
             fprintf('\n--- Physical Link Class ---\n');
             disp('tranDelay Obtained using: 1 + randi([1,4])')
-            disp('wasteRateMean Obtained using: 5 + randi([1,5])')
+            disp('wasteRateMean Obtained using: 10 + 2*randi([1,5]) + 2*chainId')
             disp('wasteRateStd Obtained using: 0.2xmean')
             for i = 1:1:obj.numOfChains
                 for k = 1:1:obj.numOfInventories
@@ -1405,8 +1544,9 @@ classdef Network < handle
              % Create a single text line for time, tracking error, and consensus error
             bottomText1 = sprintf('Time Steps: %d; Days: %d; Hours: %d', ...
                                  currentTime, obj.numDays, mod(currentTime, 24));
-            bottomText2 = sprintf('Consensus PCMAE: %.2f%% || Tracking PCMAE: %.2f%%', ...
-                                 obj.cumMeanAbsConError * (100/500), obj.cumMeanAbsTraError * (100/500));
+            % bottomText2 = sprintf('Consensus PCMAE: %.2f%% || Tracking PCMAE: %.2f%%', ...
+                                 % obj.cumMeanAbsConError * (100/500), obj.cumMeanAbsTraError * (100/500));
+             bottomText2 = sprintf('CPMAE in Consensus: %.2f%%', obj.cumMeanAbsConError * (100/500));
                              
             % Place the combined text below the network
             text(xLim0 + 5, yLim0 - 20, bottomText1, 'FontSize', 8, 'Color', 'k', 'HorizontalAlignment', 'left');

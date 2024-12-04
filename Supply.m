@@ -21,7 +21,7 @@ classdef Supply < handle
 
             % Loading supply characteristics
             obj.supRateMax = 100000;  % Maximum supply rate per time step
-            obj.productOut = randi([1,50], 1);     % Initialize outgoing product
+            obj.productOut = randi([100,900], 1);     % Initialize outgoing product
 
             % disp('Finished creating a supply...');
         end

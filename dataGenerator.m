@@ -74,3 +74,5 @@ netFileName = 'tempNet3.mat'
 load(netFileName)
 rng(7)
 net.gridSearchCompleteDesign(folderName,netFileName);
+
+

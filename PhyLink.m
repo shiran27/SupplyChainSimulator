@@ -28,7 +28,7 @@ classdef PhyLink < handle
             obj.waste = obj.wasteRateMean;
 
             % Initialize the delay buffer (FIFO queue)
-            obj.delayBuffer = randi([1,50], 1, tranDelay);  % Buffer size equal to the delay
+            obj.delayBuffer = randi([100,900], 1, tranDelay);  % Buffer size equal to the delay [1,50]
 
             % Set location for visualization
             obj.location = location;
@@ -36,7 +36,7 @@ classdef PhyLink < handle
             % disp('Finished creating a PhyLink...');
         end
 
-        function transportGoods(obj)
+        function transportGoods(obj,t)
             % Transport goods from upstream to downstream with delay
 
             % Deliver the oldest product in the buffer to the downstream node
@@ -44,6 +44,12 @@ classdef PhyLink < handle
 
             % Product Waste
             wasteValue = obj.wasteRateMean + obj.wasteRateStd * randn();
+
+            % dayNum = floor(t/24);
+            % if dayNum >= 25
+            %     wasteValue = obj.wasteRateMean + 0.25 * obj.wasteRateStd * randn();
+            % end
+
             % Smoothing factor (between 0 and 1, where 1 means no smoothing)
             alpha = 0.5; 
             % Apply exponential moving average to smooth waste

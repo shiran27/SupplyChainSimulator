@@ -155,17 +155,27 @@ classdef Chain < handle
             
             % Step 6: Update state of all inventories and demander
             for i = 1:obj.numOfInventories
-                obj.inventories{i}.updateState();    % Compute product outs
+                obj.inventories{i}.updateState(obj.numUpdates);    % Compute product outs
             end
             
             % Step 7: Transport products through each PhyLink
             for i = 1:(obj.numOfInventories+1)
-                obj.phyLinks{i}.transportGoods(); % Computer product ins at downstream
+                obj.phyLinks{i}.transportGoods(obj.numUpdates); % Computer product ins at downstream
             end
 
             % Step 8: Update the demander to generate a new demand
             obj.demander.updateState();
      
+        end
+
+
+        function randomizeInitialState(obj)
+
+            for i = 1:1:obj.numOfInventories
+                obj.inventories{i}.state = randi([100,900]);
+                obj.phyLinks{i}.delayBuffer = randi([100,900],1,obj.phyLinks{i}.tranDelay);
+            end
+
         end
 
 

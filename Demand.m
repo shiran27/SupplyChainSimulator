@@ -31,7 +31,7 @@ classdef Demand < handle
             obj.demRateMean = mean(obj.dailyMeans);        % Mean demand rate
             obj.demRateStd = 0.2*obj.demRateMean;           % Variance in demand
             
-            obj.productIn = randi([100,200],1);     % Initialize incoming products
+            obj.productIn = randi([100,900],1);     % Initialize incoming products
             obj.demand = obj.demRateMean;
             obj.demandHistory = [];
             % disp('Finished creating a demand...');
@@ -43,7 +43,7 @@ classdef Demand < handle
             demand = obj.demRateMean + obj.demRateStd * randn();
 
             % Smoothing factor (between 0 and 1, where 1 means no smoothing)
-            alpha = 0.1; 
+            alpha = 0.1; % 0.1
             % Apply exponential moving average to smooth demand (obj.previousDemand is the previous value)
             demandSmooth = alpha * demand + (1 - alpha) * obj.demand;
             demandFiltered = max(0, round(demandSmooth));
